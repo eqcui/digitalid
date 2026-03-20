@@ -1,12 +1,10 @@
-name: Build Expo Unsigned IPA (AltStore)
-
+name: Build iOS IPA
 on:
-  push:
-    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  build-ios:
-    runs-on: macos-14
+  build:
+    runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -15,50 +13,47 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'yarn'
 
-      - name: Install Dependencies
-        run: yarn install
+      - name: Install dependencies
+        run: npm install
 
-      - name: Generate iOS Directory (Expo Prebuild)
-        run: npx expo prebuild --platform ios --no-install
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
 
-      - name: Install CocoaPods
+      - name: Prebuild iOS
+        run: npx expo prebuild --platform ios
+
+      - name: Build App (Unsigned)
         run: |
-          cd ios && pod install
-        env:
-          CP_HOMEBREW_CLEAN_INSTALL_AFTER_UPDATE: 1
+          cd ios
+          # We define SYMROOT to force the build output into the 'build' folder
+          xcodebuild -workspace *.xcworkspace \
+            -scheme $(ls -d *.xcodeproj | sed 's/\.xcodeproj//') \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath ../build \
+            SYMROOT=../build/Products \
+            OBJROOT=../build/Intermediates \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
 
-      - name: Build Unsigned App
+      - name: List Files (Debug)
         run: |
-          # In Expo, the scheme name is usually found in app.json 'name' field
-          # We use a wildcard *.xcworkspace to find the generated project
-          xcodebuild -workspace ios/*.xcworkspace \
-                     -scheme $(ls ios | grep .xcworkspace | cut -f 1 -d '.') \
-                     -configuration Release \
-                     -sdk iphoneos \
-                     -derivedDataPath build \
-                     CODE_SIGNING_ALLOWED=NO \
-                     CODE_SIGNING_REQUIRED=NO \
-                     CODE_SIGN_ENTITLEMENTS="" \
-                     CODE_SIGN_IDENTITY=""
+          echo "Looking for the .app file..."
+          find build -name "*.app"
 
-      - name: Create IPA for AltStore
+      - name: Create IPA
         run: |
           mkdir -p Payload
-          APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" | head -n 1)
+          # This finds the .app file wherever it is in the build folder and copies it
+          APP_PATH=$(find build -name "*.app" | head -n 1)
           cp -r "$APP_PATH" Payload/
-          zip -r YourApp.ipa Payload
-
-      - name: Upload to Firebase App Distribution
-        uses: w9jds/firebase-action@v2
-        with:
-          args: appdistribution:distribute YourApp.ipa --app ${{ secrets.FIREBASE_APP_ID }}
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          zip -r app-unsigned.ipa Payload
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: unsigned-ipa
-          path: YourApp.ipa
+          name: app-unsigned
+          path: app-unsigned.ipa
+          retention-days: 1
