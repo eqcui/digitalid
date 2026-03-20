@@ -24,10 +24,9 @@ jobs:
         run: npx expo prebuild --platform ios --no-install
 
       - name: Set Xcode Version
-        # This lists all Xcode versions and selects 16.0.0
+        # We are using Xcode 16.2 based on your previous 'ls' output
         run: |
-          ls /Applications | grep Xcode
-          sudo xcode-select -s /Applications/Xcode_16.0.app
+          sudo xcode-select -s /Applications/Xcode_16.2.app
           xcodebuild -version
 
       - name: Fix Node Path and EXConstants
@@ -51,7 +50,7 @@ jobs:
                      -sdk iphoneos \
                      -derivedDataPath build \
                      CODE_SIGNING_ALLOWED=NO \
-                     CODE_SIGN_REQUIRED=NO \
+                     CODE_SIGNING_REQUIRED=NO \
                      CODE_SIGN_ENTITLEMENTS="" \
                      CODE_SIGN_IDENTITY="" \
                      PROVISIONING_PROFILE_SPECIFIER="" \
