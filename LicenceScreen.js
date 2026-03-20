@@ -164,7 +164,7 @@ export default function LicenceScreen({ navigation, route }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIcon}>
           <Ionicons name="chevron-back" size={28} color="white" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>NSW Driver Licence</Text>
+        <Text style={styles.headerTitle}>Provisional Driver Licence</Text>
         <TouchableOpacity style={styles.headerIcon}>
           <MaterialCommunityIcons name="dots-vertical" size={28} color="white" />
         </TouchableOpacity>
@@ -198,8 +198,8 @@ export default function LicenceScreen({ navigation, route }) {
         {/* Diagonal accent bar */}
         <View style={styles.topYellowBar}>
           <Svg width="100%" height="24" viewBox="0 0 400 24" preserveAspectRatio="none">
-            <Polygon points="0,12 400,0 400,24 0,24" fill="#6f6b32" />
-            <Polygon points="0,0 400,0 0,24"          fill="#fff364" />
+            <Polygon points="0,12 400,0 400,24 0,24" fill="#cc6969" />
+            <Polygon points="0,0 400,0 0,24"          fill="#c9535b" />
           </Svg>
         </View>
 
@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
   divider: { height: 2, backgroundColor: '#000000', width: SCREEN_WIDTH * 0.5 - 18, marginBottom: 10 },
   dividerBottom: { height: 2, backgroundColor: '#000000', width: SCREEN_WIDTH * 0.5 - 18, marginTop: 16, marginBottom: 12 },
   qrContainer: { width: SCREEN_WIDTH * 0.42, height: SCREEN_WIDTH * 0.42, backgroundColor: '#FFFFFF', borderRadius: 0, overflow: 'hidden', justifyContent: 'center', alignItems: 'center', padding: 8, marginTop: -10, marginBottom: -10 },
-  qrCode: { width: SCREEN_WIDTH * 0.46, height: SCREEN_WIDTH * 0.46, borderRadius: 0, resizeMode: 'contain' },
+  qrCode: { width: SCREEN_WIDTH * 0.44, height: SCREEN_WIDTH * 0.46, borderRadius: 0, resizeMode: 'contain' },
   classConditionsContainer: { flexDirection: 'row', borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: '#1e1e1e', width: '100%', marginTop: 0 },
   ccBlockLeft: { flex: 1, paddingVertical: 14, paddingLeft: 18, paddingRight: 14, borderRightWidth: 1, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: '#1e1e1e' },
   ccBlockRight: { flex: 1, paddingVertical: 14, paddingLeft: 14, paddingRight: 18, backgroundColor: '#1e1e1e' },
@@ -372,7 +372,7 @@ const styles = StyleSheet.create({
   signatureWhiteBox: { backgroundColor: '#FFFFFF', padding: 6, borderRadius: 0, width: 120, height: 60, alignItems: 'center', justifyContent: 'center' },
   signaturePhoto: { width: 108, height: 48, resizeMode: 'contain' },
   bottomCardInfo: { position: 'absolute', left: 40, bottom: 12, zIndex: 2 },
-  bottomCardNumber: { fontSize: 13, fontWeight: '700', color: '#646974' },
-  bottomCardLabel: { fontSize: 8, fontWeight: '700', color: '#646974', marginTop: 1, letterSpacing: 0.5 },
+  bottomCardNumber: { fontSize: 13, fontWeight: '700', color: '#ffffff' },
+  bottomCardLabel: { fontSize: 8, fontWeight: '700', color: '#ffffff', marginTop: 1, letterSpacing: 0.5 },
   bottomNswLogo: { position: 'absolute', right: 40, bottom: 12, width: 36, height: 30, resizeMode: 'contain', zIndex: 2 },
 });

@@ -23,19 +23,24 @@ import { useAuth } from './AuthContext';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PIN_LENGTH = 4;
 const USER_ID_KEY = 'user_id';
+// How long (ms) to show the digit before masking it
+const DIGIT_SHOW_MS = 600;
 
 export default function PinLoginScreen() {
   const { signIn } = useAuth();
 
-  const [pin,         setPin]         = useState('');
-  const [error,       setError]       = useState('');
-  const [loading,     setLoading]     = useState(false);
+  const [pin,          setPin]          = useState('');
+  const [error,        setError]        = useState('');
+  const [loading,      setLoading]      = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [userIdInput,  setUserIdInput]  = useState('');
   const [savedUserId,  setSavedUserId]  = useState('');
+  // Track which digit index is currently "revealing" its value
+  const [revealIndex,  setRevealIndex]  = useState(-1);
 
-  const shakeAnim = useRef(new Animated.Value(0)).current;
-  const inputRef  = useRef(null);
+  const shakeAnim  = useRef(new Animated.Value(0)).current;
+  const inputRef   = useRef(null);
+  const revealTimer = useRef(null);
 
   // Load saved user ID on mount
   useEffect(() => {
@@ -49,6 +54,9 @@ export default function PinLoginScreen() {
     const timer = setTimeout(() => inputRef.current?.focus(), 300);
     return () => clearTimeout(timer);
   }, []);
+
+  // Clean up reveal timer on unmount
+  useEffect(() => () => { if (revealTimer.current) clearTimeout(revealTimer.current); }, []);
 
   // ── Animations ─────────────────────────────────────────────────────────────
   const shake = () => {
@@ -65,9 +73,25 @@ export default function PinLoginScreen() {
   const handleChangeText = async (text) => {
     const digits = text.replace(/\D/g, '').slice(0, PIN_LENGTH);
     if (error) setError('');
+
+    const newLen = digits.length;
+    const oldLen = pin.length;
+
     setPin(digits);
 
+    // If a digit was added, reveal it briefly
+    if (newLen > oldLen) {
+      const idx = newLen - 1;
+      setRevealIndex(idx);
+      if (revealTimer.current) clearTimeout(revealTimer.current);
+      revealTimer.current = setTimeout(() => setRevealIndex(-1), DIGIT_SHOW_MS);
+    }
+
     if (digits.length === PIN_LENGTH) {
+      // Hide any reveal immediately before submitting
+      setRevealIndex(-1);
+      if (revealTimer.current) clearTimeout(revealTimer.current);
+
       setLoading(true);
       try {
         await signIn(digits);
@@ -84,6 +108,7 @@ export default function PinLoginScreen() {
         setTimeout(() => {
           setPin('');
           setError('');
+          setRevealIndex(-1);
           inputRef.current?.focus();
         }, 1200);
       }
@@ -113,9 +138,42 @@ export default function PinLoginScreen() {
 
   const focusInput = () => inputRef.current?.focus();
 
+  // ── Dot renderer ────────────────────────────────────────────────────────────
+  const renderDot = (index) => {
+    const filled   = index < pin.length;
+    const hasError = !!error;
+    const isActive = index === pin.length; // next slot to be filled = "cursor"
+    const showing  = revealIndex === index && filled && !hasError;
+
+    // Outer ring colour
+    let outerStyle;
+    if (hasError && filled) {
+      outerStyle = styles.dotOuterError;
+    } else if (isActive) {
+      outerStyle = styles.dotOuterActive;   // white border highlight
+    } else {
+      outerStyle = styles.dotOuterDefault;
+    }
+
+    return (
+      <View key={index} style={[styles.dotOuter, outerStyle]}>
+        {showing ? (
+          // Reveal mode: show digit centred, no inner dot
+          <Text style={styles.dotDigit}>{pin[index]}</Text>
+        ) : filled ? (
+          // Filled + masked: small inner circle
+          <View style={[
+            styles.dotInner,
+            hasError ? styles.dotInnerError : styles.dotInnerFilled,
+          ]} />
+        ) : null}
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <StatusBar barStyle="light-content" backgroundColor="#000000" />
+      <StatusBar barStyle="light-content" backgroundColor="#121212" />
 
       {/* Hidden TextInput — brings up native number pad */}
       <TextInput
@@ -125,7 +183,7 @@ export default function PinLoginScreen() {
         keyboardType="number-pad"
         keyboardAppearance="dark"
         maxLength={PIN_LENGTH}
-        secureTextEntry
+        secureTextEntry={false}
         caretHidden
         style={styles.hiddenInput}
         autoFocus
@@ -147,7 +205,7 @@ export default function PinLoginScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* PIN section */}
+        {/* PIN section — sits tight below the header */}
         <TouchableOpacity
           style={styles.pinSection}
           onPress={focusInput}
@@ -161,17 +219,7 @@ export default function PinLoginScreen() {
             <Animated.View
               style={[styles.dotsRow, { transform: [{ translateX: shakeAnim }] }]}
             >
-              {Array.from({ length: PIN_LENGTH }).map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.dot,
-                    i < pin.length
-                      ? error ? styles.dotError : styles.dotFilled
-                      : styles.dotEmpty,
-                  ]}
-                />
-              ))}
+              {Array.from({ length: PIN_LENGTH }).map((_, i) => renderDot(i))}
             </Animated.View>
           )}
 
@@ -238,10 +286,12 @@ export default function PinLoginScreen() {
   );
 }
 
+const DOT_SIZE = 58;
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#121212',
   },
   hiddenInput: {
     position: 'absolute',
@@ -250,13 +300,15 @@ const styles = StyleSheet.create({
     opacity: 0,
     top: -100,
   },
+
+  // ── Header ──────────────────────────────────────────────────────────────────
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingTop: 18,
+    paddingBottom: 0,
   },
   headerLogos: {
     flexDirection: 'row',
@@ -264,7 +316,7 @@ const styles = StyleSheet.create({
     gap: 16,
     flex: 1,
     justifyContent: 'center',
-    marginLeft: 20,
+    marginLeft: 26,   // offset for the dots button to keep logos centred
   },
   menuDots: { padding: 4 },
   nswLogo: {
@@ -277,62 +329,84 @@ const styles = StyleSheet.create({
     height: 36,
     resizeMode: 'contain',
   },
+
+  // ── PIN section ─────────────────────────────────────────────────────────────
   pinSection: {
-    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 8,
+    justifyContent: 'flex-start',   // hug the top (header)
+    paddingTop: 24,
   },
   pinTitle: {
     color: '#FFFFFF',
-    fontSize: 22,
+    fontSize: 21,
     fontWeight: '700',
-    marginBottom: 28,
+    marginBottom: 22,
   },
   spinner: {
     marginBottom: 16,
-    height: 52,
+    height: DOT_SIZE,
   },
   dotsRow: {
     flexDirection: 'row',
-    gap: 20,
-    marginBottom: 16,
+    gap: 15,
+    marginBottom: 15,
   },
-  dot: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+
+  // ── Individual dot ───────────────────────────────────────────────────────────
+  dotOuter: {
+    width: DOT_SIZE,
+    height: DOT_SIZE,
+    borderRadius: DOT_SIZE / 2,
+    backgroundColor: '#495054',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
-  dotEmpty: {
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.5)',
+  dotOuterDefault: {
+    borderColor: 'transparent',
+  },
+  dotOuterActive: {
+    borderColor: 'rgba(255,255,255,0.7)',
     backgroundColor: 'transparent',
   },
-  dotFilled: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  dotError: {
-    backgroundColor: '#FF3B30',
-    borderWidth: 2,
+  dotOuterError: {
     borderColor: '#FF3B30',
+    backgroundColor: 'rgba(255,59,48,0.25)',
   },
+  dotInner: {
+    width: DOT_SIZE * 0.16,
+    height: DOT_SIZE * 0.16,
+    borderRadius: (DOT_SIZE * 0.16) / 2,
+  },
+  dotInnerFilled: {
+    backgroundColor: '#FFFFFF',
+  },
+  dotInnerError: {
+    backgroundColor: '#FF3B30',
+  },
+  dotDigit: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+
+  // ── Links / errors ───────────────────────────────────────────────────────────
   errorText: {
     color: '#FF3B30',
-    fontSize: 14,
-    marginBottom: 12,
+    fontSize: 12,
+    marginBottom: 8,
     textAlign: 'center',
     paddingHorizontal: 24,
   },
   resetLink: {
     color: '#5DADE2',
-    fontSize: 15,
+    fontSize: 13,
     textDecorationLine: 'underline',
-    marginTop: 8,
+    marginTop: 6,
   },
 
-  // Modal
+  // ── Modal ────────────────────────────────────────────────────────────────────
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.7)',

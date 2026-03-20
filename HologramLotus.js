@@ -35,49 +35,33 @@ const SIZE = SW * 1.35;
 
 // Wave defaults for diagonal colour lines
 const BASE_WAVE_AMP  = 0.18;
-const MAX_WAVE_AMP   = 0.55;
+const MAX_WAVE_AMP   = 0.30;  // was 0.55 — reduced max so tilt has less effect
 const BASE_WAVE_FREQ = 1.2;
-const MAX_WAVE_FREQ  = 3.8;
+const MAX_WAVE_FREQ  = 2.2;   // was 3.8 — tighter frequency range
 
 // ─── Colour palette (8 diagonal lines) ──────────────────────────────────────
-// Loop the vivid NSW hologram colours across 8 bands.
 const HOLO_STOPS = [
-  { offset: '0%',   color: '#00ffaa' },  // mint
-  { offset: '14%',  color: '#00eeff' },  // cyan
-  { offset: '28%',  color: '#4488ff' },  // blue
-  { offset: '42%',  color: '#cc44ff' },  // purple
-  { offset: '57%',  color: '#ff44cc' },  // pink
-  { offset: '71%',  color: '#ffee00' },  // yellow
-  { offset: '85%',  color: '#00ffaa' },  // mint again
-  { offset: '100%', color: '#00eeff' },  // cyan again
+  { offset: '0%',   color: '#00ffaa' },
+  { offset: '14%',  color: '#00eeff' },
+  { offset: '28%',  color: '#4488ff' },
+  { offset: '42%',  color: '#cc44ff' },
+  { offset: '57%',  color: '#ff44cc' },
+  { offset: '71%',  color: '#ffee00' },
+  { offset: '85%',  color: '#00ffaa' },
+  { offset: '100%', color: '#00eeff' },
 ];
 
-// Build an extended palette so we can slice a window into it based on tilt
 const EXTENDED = [...HOLO_STOPS, ...HOLO_STOPS, ...HOLO_STOPS];
 
-/**
- * Build gradient stops for diagonal lines.
- *
- * Each line has a fixed colour taken directly from `HOLO_STOPS`; only the
- * stop *offsets* are modulated by the wave so the shape/spacing of the
- * coloured lines changes with tilt but their hue stays the same.
- */
 function buildStops(fraction, waveAmp = 0, waveFreq = 1, wavePhase = 0) {
   const stops = [];
-  const count = HOLO_STOPS.length; // 8 lines
+  const count = HOLO_STOPS.length;
 
   for (let i = 0; i < count; i++) {
-    // Base linear position for this stop (0‥1 across gradient)
     const p = i / (count - 1 || 1);
-
-    // Wave offsets the position of this colour band.
     const wave =
       Math.sin((p * waveFreq + wavePhase) * Math.PI * 2) * waveAmp;
-
-    // Clamp so offsets stay in [0,1]; neighbouring stops will still form
-    // smooth diagonal lines that sway as the phone tilts.
     const offset = clamp01(p + wave);
-
     stops.push({
       offset: `${offset * 100}%`,
       color: HOLO_STOPS[i].color,
@@ -86,7 +70,6 @@ function buildStops(fraction, waveAmp = 0, waveFreq = 1, wavePhase = 0) {
   return stops;
 }
 
-/** Linear interpolation between two hex colours */
 function lerpColor(a, b, t) {
   const ar = parseInt(a.slice(1, 3), 16);
   const ag = parseInt(a.slice(3, 5), 16);
@@ -107,11 +90,7 @@ function clamp01(v) {
 }
 
 // ─── SVG Lotus paths (scaled to 200×130 viewBox) ────────────────────────────
-// Centre petals, side petals, and leaves — all with black stroke + gradient fill
-
-// Exact paths traced from the original SVG (viewBox 0 0 272 176)
 const PATHS = {
-  // Centre petal (main bloom body)
   centrePetal: `M135.617355,141.393692
     C135.007233,130.427429 137.277847,119.897522 140.590698,109.555305
     C141.458160,106.847275 141.300919,104.531418 140.066223,101.927940
@@ -123,7 +102,6 @@ const PATHS = {
     C138.726486,160.715530 139.561905,159.214279 138.040466,154.507584
     C136.759964,150.546265 135.394760,146.608536 135.617355,141.393692 Z`,
 
-  // Centre top spike (tallest petal, goes to very top)
   centreSpikeLeft: `M128.965927,31.318060
     C125.797554,38.831947 122.704620,46.378944 119.427780,53.845234
     C117.873558,57.386528 118.629494,60.003170 121.252205,62.812210
@@ -135,7 +113,6 @@ const PATHS = {
     C145.604309,3.514762 144.168808,3.523238 141.520355,7.752907
     C136.923050,15.094925 132.787781,22.699221 128.965927,31.318060 Z`,
 
-  // Right inner petal
   rightInner: `M193.911865,55.871651
     C192.993835,50.625950 190.363388,52.191891 187.762817,54.414326
     C178.491089,62.337902 170.272247,71.264885 163.101547,81.114952
@@ -144,7 +121,6 @@ const PATHS = {
     C181.263885,154.344757 189.842300,144.026917 193.575958,129.751617
     C199.932816,105.446663 198.293686,81.020515 193.911865,55.871651 Z`,
 
-  // Left inner petal
   leftInner: `M82.741920,38.816341
     C76.306282,35.313511 69.858566,31.838575 63.070564,29.040691
     C57.427963,26.714922 56.014168,27.565411 55.322296,33.539532
@@ -158,8 +134,6 @@ const PATHS = {
     C91.297333,44.176373 91.720810,44.265915 85.071312,40.234673
     C84.501793,39.889404 83.939903,39.531532 82.741920,38.816341 Z`,
 
-  // Right outer petal
-  // Left leaf (large sweeping leaf)
   leftLeaf: `M4.746345,124.295380
     C1.295554,127.277931 1.775338,130.339142 4.692204,133.307800
     C6.084362,134.724670 7.595157,136.067688 9.217715,137.208847
@@ -170,7 +144,6 @@ const PATHS = {
     C50.355507,100.060127 49.802597,99.781044 44.087883,102.252068
     C30.441324,108.152824 17.547852,115.413727 4.746345,124.295380 Z`,
 
-  // Left side ear / small petal on pad
   leftEar: `M28.325991,98.983810
     C29.325804,100.049080 30.502558,100.519295 31.910637,99.908821
     C36.780014,97.797691 41.656277,95.700829 46.493614,93.518082
@@ -181,7 +154,6 @@ const PATHS = {
     C15.695529,65.432465 13.726290,68.196754 15.252687,74.394630
     C17.483192,83.451500 22.373817,91.128166 28.325991,98.983810 Z`,
 
-  // Left upper petal overlap
   leftOverlap: `M115.673164,19.860378
     C111.876793,17.172447 108.134102,14.404166 104.267487,11.821386
     C101.033623,9.661260 98.518227,10.439242 97.424736,14.260068
@@ -192,7 +164,6 @@ const PATHS = {
     C116.409683,41.819489 118.206825,37.878174 119.978523,33.942192
     C123.668045,25.745602 123.701714,25.760757 115.673164,19.860378 Z`,
 
-  // Right upper petal overlap
   rightOverlap: `M176.512070,18.051289
     C174.511261,19.538225 172.570358,21.115423 170.496246,22.491913
     C166.979645,24.825710 166.434814,27.590578 168.332718,31.378464
@@ -204,7 +175,6 @@ const PATHS = {
     C191.277939,10.637736 188.841446,9.414039 185.246948,11.894458
     C182.511475,13.782087 179.803329,15.709351 176.512070,18.051289 Z`,
 
-  // Right base decoration
   rightBase: `M216.846512,164.493057
     C214.542938,164.787994 212.240707,165.094101 209.935547,165.375992
     C198.476974,166.777237 187.011017,164.816956 175.555038,165.441193
@@ -217,9 +187,6 @@ const PATHS = {
     C234.723007,163.689545 232.736160,163.416138 230.636276,163.291885
     C226.277054,163.033936 222.035461,164.001450 216.846512,164.493057 Z`,
 
-
-
-  // Left base decoration
   leftBase: `M100.575684,171.855118
     C108.768326,169.569260 117.262779,168.833252 125.626694,167.240784
     C121.905212,165.780624 118.144859,165.573608 114.343300,165.396103
@@ -229,7 +196,7 @@ const PATHS = {
     C53.290283,168.285706 54.794350,169.912521 56.568943,171.268585
     C58.996059,173.123322 61.863686,174.016922 64.815865,174.627518
     C76.706429,177.086823 88.280319,175.137665 100.575684,171.855118 Z`,
-  // Right leaf (shifted left)
+
   rightLeaf: `M282.253655,124.295380
     C285.704446,127.277931 285.224662,130.339142 282.307796,133.307800
     C280.915638,134.724670 279.404843,136.067688 277.782285,137.208847
@@ -240,7 +207,6 @@ const PATHS = {
     C236.644493,100.060127 237.197403,99.781044 242.912117,102.252068
     C256.558676,108.152824 269.452148,115.413727 282.253655,124.295380 Z`,
 
-  // Right ear (shifted left)
   rightEar: `M258.674009,98.983810
     C257.674196,100.049080 256.497442,100.519295 255.089363,99.908821
     C250.219986,97.797691 245.343723,95.700829 240.506386,93.518082
@@ -251,11 +217,9 @@ const PATHS = {
     C271.304471,65.432465 273.273710,68.196754 271.747313,74.394630
     C269.516808,83.451500 264.626183,91.128166 258.674009,98.983810 Z`,
 
-  // Far outer right petal
   farOuterRight: `M231.462 22.955C232.844 32.935 232.916 42.795 232.924 52.868C232.925 53.828 232.925 54.788 232.925 55.776C232.897 77.784 231.530 98.218 223.281 118.407C222.751 119.719 222.220 121.031 221.674 122.382C215.706 136.019 207.789 145.288 195.231 150.672C192.432 151.441 189.933 151.801 187.050 152.017C188.086 150.713 189.123 149.410 190.191 148.067C205.975 126.451 206.058 98.318 204.581 71.353C203.680 60.473 202.681 49.127 198.738 39.088C224.575 20.046 224.575 20.046 231.462 22.955Z`,
 };
 
-// ─── Shimmer overlay positions ───────────────────────────────────────────────
 const SHIMMER_CIRCLES = [
   { cx: 136, cy: 80,  r: 22 },
   { cx: 110, cy: 100, r: 14 },
@@ -265,72 +229,66 @@ const SHIMMER_CIRCLES = [
   { cx: 195, cy: 105, r: 10 },
 ];
 
-// ─── AnimatedSvg wrapper ─────────────────────────────────────────────────────
 const AnimatedG = Animated.createAnimatedComponent(G);
 
 export default function HologramLotus() {
   const [gradStops, setGradStops] = useState(buildStops(0, BASE_WAVE_AMP, BASE_WAVE_FREQ, 0));
   const [shimmerStops, setShimmerStops] = useState(buildStops(0.5, BASE_WAVE_AMP * 0.7, BASE_WAVE_FREQ * 1.3, 0.4));
 
-  // Gyroscope accumulator
-  const rotAccum = useRef(0);
-  const tiltAccum = useRef(0);
-  const lastTs = useRef(null);
-  const smoothAmp = useRef(BASE_WAVE_AMP);
+  const rotAccum   = useRef(0);
+  const tiltAccum  = useRef(0);
+  const lastTs     = useRef(null);
+  const smoothAmp  = useRef(BASE_WAVE_AMP);
   const smoothFreq = useRef(BASE_WAVE_FREQ);
   const phaseAccum = useRef(0);
-  const smoothRot = useRef(0);
+  const smoothRot  = useRef(0);
 
-
-  // Gyroscope setup
   useEffect(() => {
-    Gyroscope.setUpdateInterval(60); // ~16ms
+    Gyroscope.setUpdateInterval(10); // was 60 — fewer updates = less jitter
 
     const subscription = Gyroscope.addListener(({ x, y, z }) => {
       const now = Date.now();
       const dt = lastTs.current ? (now - lastTs.current) / 1000 : 0.016;
       lastTs.current = now;
 
-      // Map instantaneous tilt magnitude (x/y only) to wave parameters.
-      const tiltMagXY = Math.min(Math.sqrt(x * x + y * y), 0.6); // clamp for stability
-      const active = tiltMagXY > 0.03; // dead‑zone so hologram only moves when tilted
+      // Clamp tilt magnitude — reduced from 0.6 to 0.35 so only strong tilts
+      // reach the max and gentle movement stays subtle.
+      const tiltMagXY = Math.min(Math.sqrt(x * x + y * y), 0.35); // was 0.6
+
+      // Larger dead-zone: ignore small vibrations/micro-tilts entirely.
+      const active = tiltMagXY > 0.08; // was 0.03
 
       if (active) {
-        // Accumulate rotation from y-axis (left/right tilt) and x-axis (forward/back)
-        rotAccum.current  = (rotAccum.current  + y * dt * 0.8) % 1;
-        tiltAccum.current = (tiltAccum.current + x * dt * 0.5) % 1;
-        // Smooth deterministic phase evolution so colour lines drift slowly.
+        // Reduce accumulation rates so the gradient shifts more slowly.
+        rotAccum.current  = (rotAccum.current  + y * dt * 0.25) % 1; // was 0.8
+        tiltAccum.current = (tiltAccum.current + x * dt * 0.15) % 1; // was 0.5
+
         const signedTilt = Math.sign(y || 1) * tiltMagXY;
-        phaseAccum.current += signedTilt * dt * 0.25;
+        phaseAccum.current += signedTilt * dt * 0.08; // was 0.25
       }
 
-      // Keep positive
-      const rawRot  = ((rotAccum.current  % 1) + 1) % 1;
-      const tilt = ((tiltAccum.current % 1) + 1) % 1;
-      const norm = tiltMagXY / 0.6; // 0‥1 approx
-      const eased = norm * norm;    // square to make small tilts gentler
+      const rawRot = ((rotAccum.current  % 1) + 1) % 1;
+      const tilt   = ((tiltAccum.current % 1) + 1) % 1;
+      const norm   = tiltMagXY / 0.35;
+      const eased  = norm * norm;
 
-      // Target amplitude/frequency from tilt, then low‑pass for smooth change.
-      const targetAmp =
-        BASE_WAVE_AMP + (MAX_WAVE_AMP - BASE_WAVE_AMP) * eased;
-      const targetFreq =
-        BASE_WAVE_FREQ + (MAX_WAVE_FREQ - BASE_WAVE_FREQ) * eased;
-      const lerp = 0.04; // smaller → slower, smoother response
+      const targetAmp  = BASE_WAVE_AMP  + (MAX_WAVE_AMP  - BASE_WAVE_AMP)  * eased;
+      const targetFreq = BASE_WAVE_FREQ + (MAX_WAVE_FREQ - BASE_WAVE_FREQ) * eased;
+
+      // Much slower lerp → gradient changes very gradually.
+      const lerp = 0.012; // was 0.04
       smoothAmp.current  += (targetAmp  - smoothAmp.current)  * lerp;
       smoothFreq.current += (targetFreq - smoothFreq.current) * lerp;
 
-      const waveAmp = smoothAmp.current;
-      const waveFreq = smoothFreq.current;
+      // Very slow rotation smoothing so hue shifts feel gentle.
+      smoothRot.current += (rawRot - smoothRot.current) * 0.015; // was 0.05
 
-      // Also smooth rotation so phase evolves fluidly.
-      smoothRot.current += (rawRot - smoothRot.current) * 0.05;
-      const rot = smoothRot.current;
-
-      // Phase from accumulated rotation + smooth phase accumulator.
+      const waveAmp   = smoothAmp.current;
+      const waveFreq  = smoothFreq.current;
+      const rot       = smoothRot.current;
       const wavePhase = rot * 1.5 + phaseAccum.current;
 
       setGradStops(buildStops(rot, waveAmp, waveFreq, wavePhase));
-      // Shimmer uses slightly different parameters so the waves "interfere"
       setShimmerStops(
         buildStops(
           (rot + 0.4) % 1,
@@ -338,7 +296,7 @@ export default function HologramLotus() {
           waveFreq * 1.5,
           wavePhase + tilt * 1.5
         )
-      ); // offset shimmer for depth
+      );
     });
 
     return () => subscription.remove();
@@ -346,38 +304,24 @@ export default function HologramLotus() {
 
   return (
     <View style={styles.container}>
-      {/* Outer glow ring */}
       <View style={styles.glowRing} />
-
-      {/* Lotus */}
       <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-        <Svg
-          width={SIZE}
-          height={SIZE * 0.645}
-          viewBox="0 0 272 176"
-        >
+        <Svg width={SIZE} height={SIZE * 0.645} viewBox="0 0 272 176">
           <Defs>
-            {/* Main hologram gradient — diagonal colour lines (low opacity) */}
             <LinearGradient id="holoGrad" x1="0%" y1="100%" x2="100%" y2="0%">
               {gradStops.map((s, i) => (
                 <Stop key={i} offset={s.offset} stopColor={s.color} stopOpacity="0.85" />
               ))}
             </LinearGradient>
-
-            {/* Shimmer overlay — same diagonal, even softer */}
             <LinearGradient id="shimmerGrad" x1="0%" y1="100%" x2="100%" y2="0%">
               {shimmerStops.map((s, i) => (
                 <Stop key={i} offset={s.offset} stopColor={s.color} stopOpacity="0.70" />
               ))}
             </LinearGradient>
-
-            {/* Radial highlight for each petal centre */}
             <RadialGradient id="petalHighlight" cx="50%" cy="40%" r="60%">
               <Stop offset="0%"   stopColor="#ffffff" stopOpacity="0.70" />
               <Stop offset="100%" stopColor="#ffffff" stopOpacity="0"    />
             </RadialGradient>
-
-            {/* Dark base for leaves */}
             <LinearGradient id="leafGrad" x1="0%" y1="0%" x2="100%" y2="100%">
               {gradStops.map((s, i) => (
                 <Stop key={i} offset={s.offset} stopColor={s.color} stopOpacity="0.95" />
@@ -386,52 +330,44 @@ export default function HologramLotus() {
           </Defs>
 
           <G transform="translate(-9, 0)">
-          {/* ── Leaves / base decorations (back layer) ── */}
-          <Path d={PATHS.leftLeaf}   fill="url(#leafGrad)"  opacity={0.80} />
-          <Path d={PATHS.leftEar}    fill="url(#leafGrad)"  opacity={0.70} />
-          <Path d={PATHS.leftBase}   fill="url(#leafGrad)"  opacity={0.75} />
-          <Path d={PATHS.rightBase}  fill="url(#leafGrad)"  opacity={0.75} />
-          {/* Shimmer on leaves */}
-          <Path d={PATHS.leftLeaf}   fill="url(#shimmerGrad)" opacity="0.50" />
-          <Path d={PATHS.leftEar}    fill="url(#shimmerGrad)" opacity="0.45" />
-          <Path d={PATHS.rightLeaf}  fill="url(#leafGrad)"  />
-          <Path d={PATHS.rightEar}   fill="url(#leafGrad)"  />
-          <Path d={PATHS.rightLeaf}  fill="url(#shimmerGrad)" opacity="0.50" />
-          <Path d={PATHS.rightEar}   fill="url(#shimmerGrad)" opacity="0.45" />
-          <Path d={PATHS.leftBase}   fill="url(#shimmerGrad)" opacity="0.50" />
-          <Path d={PATHS.rightBase}  fill="url(#shimmerGrad)" opacity="0.50" />
+            <Path d={PATHS.leftLeaf}         fill="url(#leafGrad)"      opacity={0.80} />
+            <Path d={PATHS.leftEar}          fill="url(#leafGrad)"      opacity={0.70} />
+            <Path d={PATHS.leftBase}         fill="url(#leafGrad)"      opacity={0.75} />
+            <Path d={PATHS.rightBase}        fill="url(#leafGrad)"      opacity={0.75} />
+            <Path d={PATHS.leftLeaf}         fill="url(#shimmerGrad)"   opacity="0.50" />
+            <Path d={PATHS.leftEar}          fill="url(#shimmerGrad)"   opacity="0.45" />
+            <Path d={PATHS.rightLeaf}        fill="url(#leafGrad)"      />
+            <Path d={PATHS.rightEar}         fill="url(#leafGrad)"      />
+            <Path d={PATHS.rightLeaf}        fill="url(#shimmerGrad)"   opacity="0.50" />
+            <Path d={PATHS.rightEar}         fill="url(#shimmerGrad)"   opacity="0.45" />
+            <Path d={PATHS.leftBase}         fill="url(#shimmerGrad)"   opacity="0.50" />
+            <Path d={PATHS.rightBase}        fill="url(#shimmerGrad)"   opacity="0.50" />
 
-          {/* ── Outer petals ── */}
-          <Path d={PATHS.farOuterRight}  fill="url(#holoGrad)"     />
-          <Path d={PATHS.farOuterRight}  fill="url(#shimmerGrad)"  opacity="0.50" />
-          <Path d={PATHS.farOuterRight}  fill="url(#petalHighlight)" />
+            <Path d={PATHS.farOuterRight}    fill="url(#holoGrad)"      />
+            <Path d={PATHS.farOuterRight}    fill="url(#shimmerGrad)"   opacity="0.50" />
+            <Path d={PATHS.farOuterRight}    fill="url(#petalHighlight)" />
 
-          {/* ── Inner side petals ── */}
-          <Path d={PATHS.leftInner}     fill="url(#holoGrad)"      opacity={0.90} strokeLinejoin="round" />
-          <Path d={PATHS.rightInner}    fill="url(#holoGrad)"      opacity={0.90} strokeLinejoin="round" />
-          <Path d={PATHS.leftInner}     fill="url(#shimmerGrad)" opacity="0.50" />
-          <Path d={PATHS.rightInner}    fill="url(#shimmerGrad)" opacity="0.50" />
-          <Path d={PATHS.leftInner}     fill="url(#petalHighlight)" />
-          <Path d={PATHS.rightInner}    fill="url(#petalHighlight)" />
+            <Path d={PATHS.leftInner}        fill="url(#holoGrad)"      opacity={0.90} strokeLinejoin="round" />
+            <Path d={PATHS.rightInner}       fill="url(#holoGrad)"      opacity={0.90} strokeLinejoin="round" />
+            <Path d={PATHS.leftInner}        fill="url(#shimmerGrad)"   opacity="0.50" />
+            <Path d={PATHS.rightInner}       fill="url(#shimmerGrad)"   opacity="0.50" />
+            <Path d={PATHS.leftInner}        fill="url(#petalHighlight)" />
+            <Path d={PATHS.rightInner}       fill="url(#petalHighlight)" />
 
-          {/* ── Centre bloom body ── */}
-          <Path d={PATHS.centrePetal}   fill="url(#holoGrad)"    opacity={0.92} />
-          <Path d={PATHS.centrePetal}   fill="url(#shimmerGrad)" opacity="0.60" />
-          <Path d={PATHS.centrePetal}   fill="url(#petalHighlight)" />
+            <Path d={PATHS.centrePetal}      fill="url(#holoGrad)"      opacity={0.92} />
+            <Path d={PATHS.centrePetal}      fill="url(#shimmerGrad)"   opacity="0.60" />
+            <Path d={PATHS.centrePetal}      fill="url(#petalHighlight)" />
 
-          {/* ── Upper petal overlaps (left/right of spike) ── */}
-          <Path d={PATHS.leftOverlap}   fill="url(#holoGrad)"    opacity={0.90} />
-          <Path d={PATHS.rightOverlap}  fill="url(#holoGrad)"    opacity={0.90} />
-          <Path d={PATHS.leftOverlap}   fill="url(#shimmerGrad)" opacity="0.50" />
-          <Path d={PATHS.rightOverlap}  fill="url(#shimmerGrad)" opacity="0.50" />
-          <Path d={PATHS.leftOverlap}   fill="url(#petalHighlight)" />
-          <Path d={PATHS.rightOverlap}  fill="url(#petalHighlight)" />
+            <Path d={PATHS.leftOverlap}      fill="url(#holoGrad)"      opacity={0.90} />
+            <Path d={PATHS.rightOverlap}     fill="url(#holoGrad)"      opacity={0.90} />
+            <Path d={PATHS.leftOverlap}      fill="url(#shimmerGrad)"   opacity="0.50" />
+            <Path d={PATHS.rightOverlap}     fill="url(#shimmerGrad)"   opacity="0.50" />
+            <Path d={PATHS.leftOverlap}      fill="url(#petalHighlight)" />
+            <Path d={PATHS.rightOverlap}     fill="url(#petalHighlight)" />
 
-          {/* ── Centre top spike (tallest, frontmost) ── */}
-          <Path d={PATHS.centreSpikeLeft} fill="url(#holoGrad)"    opacity={0.92} />
-          <Path d={PATHS.centreSpikeLeft} fill="url(#shimmerGrad)" opacity="0.60" />
-          <Path d={PATHS.centreSpikeLeft} fill="url(#petalHighlight)" />
-
+            <Path d={PATHS.centreSpikeLeft}  fill="url(#holoGrad)"      opacity={0.92} />
+            <Path d={PATHS.centreSpikeLeft}  fill="url(#shimmerGrad)"   opacity="0.60" />
+            <Path d={PATHS.centreSpikeLeft}  fill="url(#petalHighlight)" />
           </G>
         </Svg>
       </View>

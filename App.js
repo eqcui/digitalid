@@ -10,6 +10,8 @@ import LicenceScreen    from './LicenceScreen';
 import PinLoginScreen   from './PinLoginScreen';
 import VerifyScreen     from './VerifyScreen';
 import AccountScreen    from './AccountScreen';
+import ServicesScreen   from './ServicesScreen';
+import WalletScreen     from './WalletScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -32,10 +34,12 @@ function RootNavigator() {
         {user ? (
           // ── Authenticated screens ──────────────────────────────────────────
           <>
-            <Stack.Screen name="Home"    component={HomeScreen}    />
-            <Stack.Screen name="Licence" component={LicenceScreen} />
-            <Stack.Screen name="Verify"  component={VerifyScreen}  />
-            <Stack.Screen name="Account" component={AccountScreen} />
+            <Stack.Screen name="Home"     component={HomeScreen}     />
+            <Stack.Screen name="Licence"  component={LicenceScreen}  />
+            <Stack.Screen name="Verify"   component={VerifyScreen}   />
+            <Stack.Screen name="Account"  component={AccountScreen}  />
+            <Stack.Screen name="Services" component={ServicesScreen} />
+            <Stack.Screen name="Wallet"   component={WalletScreen}   />
           </>
         ) : (
           // ── Unauthenticated screens ────────────────────────────────────────
