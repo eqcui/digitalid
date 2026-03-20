@@ -15,14 +15,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm' # Now it will correctly find your package-lock.json
+          cache: 'npm'
 
       - name: Install Dependencies
-        # 'npm ci' is faster and more reliable than 'npm install' in GitHub Actions
-        run: npm ci 
+        run: npm ci
 
       - name: Generate iOS Directory (Expo Prebuild)
         run: npx expo prebuild --platform ios --no-install
+
+      - name: Set Xcode Version
+        # This selects Xcode 15.4, which is the stable standard for current React Native
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
 
       - name: Fix Node Path and EXConstants
         run: |
