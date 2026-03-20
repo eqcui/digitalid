@@ -1,4 +1,4 @@
-name: Build Service-NSW for AltStore (No Firebase)
+name: Build Service-NSW (AltStore)
 
 on:
   push:
@@ -14,11 +14,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'yarn'
+          node-version: 22
+          cache: 'npm' # Now it will correctly find your package-lock.json
 
       - name: Install Dependencies
-        run: yarn install
+        # 'npm ci' is faster and more reliable than 'npm install' in GitHub Actions
+        run: npm ci 
 
       - name: Generate iOS Directory (Expo Prebuild)
         run: npx expo prebuild --platform ios --no-install
@@ -58,7 +59,6 @@ jobs:
           zip -r Service-NSW-Unsigned.ipa Payload
 
       - name: Upload IPA to GitHub
-        # This is all you need. You download this from the GitHub website.
         uses: actions/upload-artifact@v4
         with:
           name: Service-NSW-IPA
