@@ -24,8 +24,79 @@ jobs:
         run: npx expo prebuild --platform ios --no-install
 
       - name: Set Xcode Version
-        # This selects Xcode 15.4, which is the stable standard for current React Native
-        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+        # Switching to Xcode 16.0 to satisfy the Podfile requirements
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.app
+          xcodebuild -version
+
+      - name: Fix Node Path and EXConstants
+        run: |
+          ln -s $(which node) /usr/local/bin/node || true
+          echo "export NODE_BINARY=$(which node)" > .xcode.env
+          cp .xcode.env ios/.xcode.env
+
+      - name: Install CocoaPods
+        run: |
+          cd ios && pod install
+        env:
+          CP_HOMEBREW_CLEAN_INSTALL_AFTER_UPDATE: 1
+
+      - name: Build Unsigned App
+        run: |
+          SCHEME_NAME=$(ls ios | grep .xcworkspace | cut -f 1 -d '.')
+          xcodebuild -workspace ios/*.xcworkspace \
+                     -scheme "$SCHEME_NAME" \
+                     -configuration Release \
+                     -sdk iphoneos \
+                     -derivedDataPath build \
+                     CODE_SIGNING_ALLOWED=NO \
+                     CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGN_ENTITLEMENTS="" \
+                     CODE_SIGN_IDENTITY="" \
+                     PROVISIONING_PROFILE_SPECIFIER="" \
+                     GENERATE_INFOPLIST_FILE=YES
+
+      - name: Create IPA for AltStore
+        run: |
+          mkdir -p Payload
+          APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" | head -n 1)
+          cp -r "$APP_PATH" Payload/
+          zip -r Service-NSW-Unsigned.ipa Payload
+
+      - name: Upload IPA to GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: Service-NSW-IPA
+          path: Service-NSW-Unsigned.ipaname: Build Service-NSW (AltStore)
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-ios:
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Generate iOS Directory (Expo Prebuild)
+        run: npx expo prebuild --platform ios --no-install
+
+      - name: Set Xcode Version
+        # Switching to Xcode 16.0 to satisfy the Podfile requirements
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.app
+          xcodebuild -version
 
       - name: Fix Node Path and EXConstants
         run: |
