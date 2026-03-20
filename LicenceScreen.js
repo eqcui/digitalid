@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Image,
   ScrollView,
-  RefreshControl,
   Dimensions,
   Animated,
   Easing,
@@ -22,36 +21,36 @@ import { fetchQRCode, fetchLicencePhotos } from './api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// Fallback public-domain QR for when the API hasn't returned yet
 const PLACEHOLDER_QR = 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/QR_code_for_mobile_English_Wikipedia.svg/330px-QR_code_for_mobile_English_Wikipedia.svg.png';
 
 export default function LicenceScreen({ navigation, route }) {
   const { user, token, licences, refreshUser } = useAuth();
 
-  // Determine which licence to show.
-  // HomeScreen passes licenceId via route.params; fall back to first licence.
-  const licenceId      = route?.params?.licenceId;
-  const licence        = licences.find((l) => l.id === licenceId) ?? licences[0] ?? null;
+  const licenceId = route?.params?.licenceId;
+  const licence   = licences.find((l) => l.id === licenceId) ?? licences[0] ?? null;
 
-  // QR code state
-  const [qrUrl,       setQrUrl]       = useState(PLACEHOLDER_QR);
-  const [qrLoading,   setQrLoading]   = useState(false);
+  const [qrUrl,     setQrUrl]     = useState(PLACEHOLDER_QR);
+  const [qrLoading, setQrLoading] = useState(false);
 
-  // Per-licence photo state (falls back to user-level URLs, then bundled assets)
   const [licenceProfilePhotoUrl,   setLicenceProfilePhotoUrl]   = useState(null);
   const [licenceSignaturePhotoUrl, setLicenceSignaturePhotoUrl] = useState(null);
 
-  // Pull-to-refresh
   const [refreshDate, setRefreshDate] = useState(new Date());
-  const [refreshing,  setRefreshing]  = useState(false);
+  const [isFetching,   setIsFetching]  = useState(false); // true while API calls run
+  const [spinVisible,  setSpinVisible] = useState(false); // true while spinner shows
 
-  // Refresh spinner animations
-  const arrowTranslateY = useRef(new Animated.Value(0)).current;
-  const arrowOpacity    = useRef(new Animated.Value(0)).current;
-  const spinAnim        = useRef(new Animated.Value(0)).current;
-  const spinLoop        = useRef(null);
+  // ── Animation refs ─────────────────────────────────────────────────────────
+  const spinOpacity    = useRef(new Animated.Value(0)).current;
+  const spinAnim       = useRef(new Animated.Value(0)).current;
+  const spinLoop       = useRef(null);
+  const minTimer       = useRef(null);
+  const hideTimer      = useRef(null);
+  const MIN_SPIN_MS    = 1200;   // spinner always shows for at least this long
+  const PULL_THRESHOLD = 80;     // px the user must pull before triggering refresh
+  const isPulling      = useRef(false);
+  const pullStartY     = useRef(0);
 
-  // ── Fetch QR code from API ─────────────────────────────────────────────────
+  // ── Fetch QR ───────────────────────────────────────────────────────────────
   const loadQR = useCallback(async () => {
     if (!licence?.id || !token) return;
     setQrLoading(true);
@@ -59,7 +58,7 @@ export default function LicenceScreen({ navigation, route }) {
       const { qrCodeUrl } = await fetchQRCode(token, licence.id);
       setQrUrl(qrCodeUrl);
     } catch {
-      // Keep placeholder on error — licence is still displayable
+      // Keep placeholder
     } finally {
       setQrLoading(false);
     }
@@ -67,55 +66,84 @@ export default function LicenceScreen({ navigation, route }) {
 
   useEffect(() => { loadQR(); }, [loadQR]);
 
-  // ── Fetch per-licence photos from API ──────────────────────────────────────
+  // ── Fetch photos ───────────────────────────────────────────────────────────
   const loadPhotos = useCallback(async () => {
     if (!licence?.id || !token) return;
     try {
       const { profilePhotoUrl, signaturePhotoUrl } = await fetchLicencePhotos(token, licence.id);
       if (profilePhotoUrl)   setLicenceProfilePhotoUrl(profilePhotoUrl);
       if (signaturePhotoUrl) setLicenceSignaturePhotoUrl(signaturePhotoUrl);
-    } catch {
-      // Endpoint may not exist yet — fall back to user-level photos silently
-    }
+    } catch {}
   }, [licence?.id, token]);
 
   useEffect(() => { loadPhotos(); }, [loadPhotos]);
 
-  // ── Refresh-spinner animation ──────────────────────────────────────────────
+  // ── Spinner show/hide ────────────────────────────────────────────────────────
   useEffect(() => {
-    if (refreshing) {
-      Animated.parallel([
-        Animated.spring(arrowTranslateY, { toValue: 56, useNativeDriver: true, friction: 6 }),
-        Animated.timing(arrowOpacity,    { toValue: 1, duration: 150, useNativeDriver: true }),
-      ]).start();
+    if (spinVisible) {
       spinAnim.setValue(0);
+      Animated.timing(spinOpacity, { toValue: 1, duration: 180, useNativeDriver: true }).start();
       spinLoop.current = Animated.loop(
         Animated.timing(spinAnim, { toValue: 1, duration: 700, easing: Easing.linear, useNativeDriver: true })
       );
       spinLoop.current.start();
     } else {
-      Animated.parallel([
-        Animated.timing(arrowTranslateY, { toValue: 0, duration: 250, useNativeDriver: true }),
-        Animated.timing(arrowOpacity,    { toValue: 0, duration: 200, useNativeDriver: true }),
-      ]).start();
-      if (spinLoop.current) spinLoop.current.stop();
+      if (spinLoop.current) { spinLoop.current.stop(); spinLoop.current = null; }
+      Animated.timing(spinOpacity, { toValue: 0, duration: 600, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
     }
-  }, [refreshing]);
+    return () => {
+      if (spinLoop.current)  { spinLoop.current.stop();           spinLoop.current  = null; }
+      if (minTimer.current)  { clearTimeout(minTimer.current);   minTimer.current  = null; }
+      if (hideTimer.current) { clearTimeout(hideTimer.current);  hideTimer.current = null; }
+    };
+  }, [spinVisible]);
 
-  // ── Pull-to-refresh handler ────────────────────────────────────────────────
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
+  // ── Trigger refresh (called when pull gesture crosses threshold) ─────────────
+  const triggerRefresh = useCallback(async () => {
+    if (isFetching) return;
+    if (minTimer.current)  { clearTimeout(minTimer.current);  minTimer.current  = null; }
+    if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null; }
+
+    setIsFetching(true);
+    setSpinVisible(true);
+    const startedAt = Date.now();
+
     try {
       await Promise.all([refreshUser(), loadQR(), loadPhotos()]);
       setRefreshDate(new Date());
     } catch {
       setRefreshDate(new Date());
     } finally {
-      setRefreshing(false);
+      setIsFetching(false);
+      // Guarantee spinner shows for MIN_SPIN_MS before fading
+      const remaining = Math.max(0, MIN_SPIN_MS - (Date.now() - startedAt));
+      minTimer.current = setTimeout(() => {
+        minTimer.current = null;
+        hideTimer.current = setTimeout(() => {
+          hideTimer.current = null;
+          setSpinVisible(false);
+        }, 400);
+      }, remaining);
     }
-  }, [refreshUser, loadQR, loadPhotos]);
+  }, [isFetching, refreshUser, loadQR, loadPhotos]);
 
-  // ── Date/time formatters ───────────────────────────────────────────────────
+  // ── Manual pull gesture handlers ──────────────────────────────────────────
+  const onScrollBeginDrag = useCallback((e) => {
+    pullStartY.current = e.nativeEvent.contentOffset.y;
+    isPulling.current  = true;
+  }, []);
+
+  const onScrollEndDrag = useCallback((e) => {
+    if (!isPulling.current) return;
+    isPulling.current = false;
+    const currentY = e.nativeEvent.contentOffset.y;
+    const delta    = pullStartY.current - currentY; // positive = pulled down
+    if (delta >= PULL_THRESHOLD && !isFetching) {
+      triggerRefresh();
+    }
+  }, [isFetching, triggerRefresh]);
+
+  // ── Formatters ─────────────────────────────────────────────────────────────
   const formatDate = (date) => {
     const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
@@ -127,12 +155,11 @@ export default function LicenceScreen({ navigation, route }) {
     return `${h}:${m < 10 ? '0' + m : m}${ampm}`;
   };
 
-  // ── Static assets (unchanged) ──────────────────────────────────────────────
+  // ── Static assets ──────────────────────────────────────────────────────────
   const NSW_LOGO_STATIC = require('./assets/nsw-logo-static.png');
   const BOTTOM_BANNER   = require('./assets/bottom-banner.png');
-  const SIGNATURE_PHOTO = require('./assets/signature.png');  // fallback
+  const SIGNATURE_PHOTO = require('./assets/signature.png');
 
-  // Dynamic photo sources — prefer per-licence API URL, then user-level URL, then bundled asset
   const profilePhotoSource   = licenceProfilePhotoUrl
     ? { uri: licenceProfilePhotoUrl }
     : user?.profilePhotoUrl
@@ -159,7 +186,7 @@ export default function LicenceScreen({ navigation, route }) {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
 
-      {/* ── HEADER ──────────────────────────────────────────────────────── */}
+      {/* ── HEADER ── */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIcon}>
           <Ionicons name="chevron-back" size={28} color="white" />
@@ -170,30 +197,34 @@ export default function LicenceScreen({ navigation, route }) {
         </TouchableOpacity>
       </View>
 
-      {/* ── SCROLLABLE CONTENT ──────────────────────────────────────────── */}
+      {/* ── SCROLLABLE CONTENT ── */}
       <ScrollView
         style={styles.mainScroll}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="transparent"
-            title=""
-            titleColor="transparent"
-          />
-        }
+        onScrollBeginDrag={onScrollBeginDrag}
+        onScrollEndDrag={onScrollEndDrag}
+        scrollEventThrottle={16}
+        bounces={true}
       >
 
-        {/* Refresh spinner */}
-        {refreshing && (
-          <Animated.View style={[
-            styles.sunburstSpinner,
-            { transform: [{ rotate: spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }] },
-          ]}>
-            <Ionicons name="sync" size={22} color="rgba(255,255,255,0.7)" />
+        {/* Custom refresh spinner — fades in/out independently of RefreshControl */}
+        <Animated.View
+          style={[styles.sunburstSpinnerWrapper, { opacity: spinOpacity }]}
+          pointerEvents="none"
+        >
+          <Animated.View
+            style={{
+              transform: [{
+                rotate: spinAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ['0deg', '360deg'],
+                }),
+              }],
+            }}
+          >
+            <Ionicons name="sync" size={22} color="rgba(255,255,255,0.85)" />
           </Animated.View>
-        )}
+        </Animated.View>
 
         {/* Diagonal accent bar */}
         <View style={styles.topYellowBar}>
@@ -203,10 +234,9 @@ export default function LicenceScreen({ navigation, route }) {
           </Svg>
         </View>
 
-        {/* ── TOP CARD ────────────────────────────────────────────────────── */}
+        {/* ── TOP CARD ── */}
         <View style={styles.topScreenViewport}>
 
-          {/* Photo + name + logo + refreshed */}
           <View style={styles.topPhotoRow}>
             <View style={styles.nswLogoAnimated}>
               <NSWLogoAnimated size={38} />
@@ -223,12 +253,10 @@ export default function LicenceScreen({ navigation, route }) {
             </View>
           </View>
 
-          {/* Hologram — above photo, below text/fields */}
           <View style={styles.hologramBg} pointerEvents="none">
             <HologramLotus />
           </View>
 
-          {/* Fields + QR */}
           <View style={[styles.fieldsQrRow, { zIndex: 4 }]}>
             <View style={styles.divider} />
             <View style={styles.fieldsAndQr}>
@@ -243,7 +271,6 @@ export default function LicenceScreen({ navigation, route }) {
                 </View>
               </View>
 
-              {/* QR code */}
               <View style={styles.qrContainer}>
                 {qrLoading ? (
                   <ActivityIndicator color="#000" />
@@ -262,7 +289,7 @@ export default function LicenceScreen({ navigation, route }) {
 
         </View>
 
-        {/* ── CLASS & CONDITIONS bar ───────────────────────────────────────── */}
+        {/* ── CLASS & CONDITIONS ── */}
         {licence.licenceClass !== null && (
           <View style={styles.classConditionsContainer}>
             <View style={styles.ccBlockLeft}>
@@ -283,10 +310,9 @@ export default function LicenceScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* ── BELOW THE FOLD ──────────────────────────────────────────────── */}
+        {/* ── BELOW THE FOLD ── */}
         <View style={styles.bottomSection}>
 
-          {/* Address */}
           <View style={styles.addressRow}>
             <View style={styles.addressContent}>
               <Image source={profilePhotoSource} style={styles.addressPhoto} />
@@ -295,14 +321,12 @@ export default function LicenceScreen({ navigation, route }) {
             </View>
           </View>
 
-          {/* Signature */}
           <View style={styles.signatureContainer}>
             <View style={styles.signatureWhiteBox}>
               <Image source={signaturePhotoSource} style={styles.signaturePhoto} />
             </View>
           </View>
 
-          {/* Bottom banner */}
           <View style={styles.bannerWrapper}>
             <Image source={BOTTOM_BANNER} style={styles.bottomBannerImage} />
             <View style={styles.bottomYellowBox}>
@@ -320,14 +344,21 @@ export default function LicenceScreen({ navigation, route }) {
   );
 }
 
-// ─── Styles (identical to original, kept in full) ─────────────────────────────
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#121212' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, height: 56, backgroundColor: '#121212' },
   headerIcon: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 17, fontWeight: '700', color: '#FFFFFF' },
   topYellowBar: { height: 24, width: '100%', position: 'relative' },
-  sunburstSpinner: { alignSelf: 'center', marginBottom: 6 },
+
+  // Spinner sits absolutely above the scroll content, starts off-screen (translateY: 0 = hidden above)
+  sunburstSpinnerWrapper: {
+    position: 'absolute',
+    top: 0,
+    alignSelf: 'center',
+    zIndex: 99,
+  },
+
   mainScroll: { flex: 1 },
   topScreenViewport: { minHeight: SCREEN_WIDTH * 0.50 + 110 + SCREEN_WIDTH * 0.42 + 80, backgroundColor: '#121212', position: 'relative', flex: 1, justifyContent: 'space-between' },
   hologramBg: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'center', opacity: 0.25, zIndex: 3, transform: [{ scale: 1 }, { translateY: 85 }] },
