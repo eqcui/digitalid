@@ -7,15 +7,12 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # Updated to v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4 # Updated to v4
         with:
-          node-version: 18
-
-      - name: Install Expo CLI
-        run: npm install -g expo-cli
+          node-version: 20 # Using a more modern node version
 
       - name: Install dependencies
         run: npm install
@@ -29,17 +26,20 @@ jobs:
       - name: Build App (Unsigned)
         run: |
           cd ios
-          xcodebuild -workspace *.xcworkspace -scheme $(ls -d *.xcodeproj | sed 's/\.xcodeproj//') -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO
+          # This compiles the app without needing an Apple account
+          xcodebuild -workspace *.xcworkspace -scheme $(ls -d *.xcodeproj | sed 's/\.xcodeproj//') -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 
       - name: Create IPA
         run: |
           mkdir -p build/Payload
+          # Find the .app file and move it into the Payload folder
           cp -r ios/build/Release-iphoneos/*.app build/Payload/
           cd build
           zip -r ../app-unsigned.ipa Payload
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4 # Updated to v4
         with:
           name: app-unsigned
           path: app-unsigned.ipa
+          retention-days: 1 # Deletes it after 1 day to save your storage space
