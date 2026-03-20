@@ -1,4 +1,4 @@
-name: Build Service-NSW Unsigned (AltStore)
+name: Build Service-NSW for AltStore (No Firebase)
 
 on:
   push:
@@ -21,13 +21,10 @@ jobs:
         run: yarn install
 
       - name: Generate iOS Directory (Expo Prebuild)
-        # This creates the /ios folder dynamically
         run: npx expo prebuild --platform ios --no-install
 
       - name: Fix Node Path and EXConstants
-        # This is the fix for Error 65. It ensures Xcode scripts can find Node.
         run: |
-          mkdir -p ios/build
           ln -s $(which node) /usr/local/bin/node || true
           echo "export NODE_BINARY=$(which node)" > .xcode.env
           cp .xcode.env ios/.xcode.env
@@ -40,11 +37,7 @@ jobs:
 
       - name: Build Unsigned App
         run: |
-          # 1. Detect the Scheme name (handles hyphens like Service-NSW)
           SCHEME_NAME=$(ls ios | grep .xcworkspace | cut -f 1 -d '.')
-          echo "Detected Scheme: $SCHEME_NAME"
-
-          # 2. Build with absolute bypass of all signing
           xcodebuild -workspace ios/*.xcworkspace \
                      -scheme "$SCHEME_NAME" \
                      -configuration Release \
@@ -55,27 +48,18 @@ jobs:
                      CODE_SIGN_ENTITLEMENTS="" \
                      CODE_SIGN_IDENTITY="" \
                      PROVISIONING_PROFILE_SPECIFIER="" \
-                     GENERATE_INFOPLIST_FILE=YES \
-                     STRIP_INSTALLED_PRODUCT=NO
+                     GENERATE_INFOPLIST_FILE=YES
 
       - name: Create IPA for AltStore
         run: |
           mkdir -p Payload
-          # Find the .app folder and package it into the Payload folder
           APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" | head -n 1)
           cp -r "$APP_PATH" Payload/
           zip -r Service-NSW-Unsigned.ipa Payload
 
-      - name: Upload Artifact
+      - name: Upload IPA to GitHub
+        # This is all you need. You download this from the GitHub website.
         uses: actions/upload-artifact@v4
         with:
           name: Service-NSW-IPA
           path: Service-NSW-Unsigned.ipa
-
-      - name: Upload to Firebase App Distribution
-        if: success()
-        uses: w9jds/firebase-action@v2
-        with:
-          args: appdistribution:distribute Service-NSW-Unsigned.ipa --app ${{ secrets.FIREBASE_APP_ID }}
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
