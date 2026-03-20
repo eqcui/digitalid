@@ -1,0 +1,64 @@
+name: Build Expo Unsigned IPA (AltStore)
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-ios:
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'yarn'
+
+      - name: Install Dependencies
+        run: yarn install
+
+      - name: Generate iOS Directory (Expo Prebuild)
+        run: npx expo prebuild --platform ios --no-install
+
+      - name: Install CocoaPods
+        run: |
+          cd ios && pod install
+        env:
+          CP_HOMEBREW_CLEAN_INSTALL_AFTER_UPDATE: 1
+
+      - name: Build Unsigned App
+        run: |
+          # In Expo, the scheme name is usually found in app.json 'name' field
+          # We use a wildcard *.xcworkspace to find the generated project
+          xcodebuild -workspace ios/*.xcworkspace \
+                     -scheme $(ls ios | grep .xcworkspace | cut -f 1 -d '.') \
+                     -configuration Release \
+                     -sdk iphoneos \
+                     -derivedDataPath build \
+                     CODE_SIGNING_ALLOWED=NO \
+                     CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGN_ENTITLEMENTS="" \
+                     CODE_SIGN_IDENTITY=""
+
+      - name: Create IPA for AltStore
+        run: |
+          mkdir -p Payload
+          APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" | head -n 1)
+          cp -r "$APP_PATH" Payload/
+          zip -r YourApp.ipa Payload
+
+      - name: Upload to Firebase App Distribution
+        uses: w9jds/firebase-action@v2
+        with:
+          args: appdistribution:distribute YourApp.ipa --app ${{ secrets.FIREBASE_APP_ID }}
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-ipa
+          path: YourApp.ipa
