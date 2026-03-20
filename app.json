@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Service-NSW",
-    "slug": "Service-NSW",
+    "name": "service-nsw",
+    "slug": "service-nsw",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
