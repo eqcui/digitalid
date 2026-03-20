@@ -1,0 +1,45 @@
+name: Build iOS IPA
+on:
+  workflow_dispatch: # This lets you start the build manually
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install Expo CLI
+        run: npm install -g expo-cli
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Prebuild iOS
+        run: npx expo prebuild --platform ios
+
+      - name: Build App (Unsigned)
+        run: |
+          cd ios
+          xcodebuild -workspace *.xcworkspace -scheme $(ls -d *.xcodeproj | sed 's/\.xcodeproj//') -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO
+
+      - name: Create IPA
+        run: |
+          mkdir -p build/Payload
+          cp -r ios/build/Release-iphoneos/*.app build/Payload/
+          cd build
+          zip -r ../app-unsigned.ipa Payload
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-unsigned
+          path: app-unsigned.ipa
