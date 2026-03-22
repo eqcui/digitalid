@@ -24,6 +24,7 @@ jobs:
         run: npx expo prebuild --platform ios --no-install
 
       - name: Set Xcode Version
+        # We are using Xcode 16.2 based on your previous 'ls' output
         run: |
           sudo xcode-select -s /Applications/Xcode_16.2.app
           xcodebuild -version
@@ -33,17 +34,6 @@ jobs:
           ln -s $(which node) /usr/local/bin/node || true
           echo "export NODE_BINARY=$(which node)" > .xcode.env
           cp .xcode.env ios/.xcode.env
-
-      - name: Cache CocoaPods
-        uses: actions/cache@v4
-        with:
-          path: |
-            ios/Pods
-            ~/Library/Caches/CocoaPods
-            ~/.cocoapods
-          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pods-
 
       - name: Install CocoaPods
         run: |

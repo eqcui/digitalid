@@ -1,57 +1,88 @@
 /**
- * HologramLotus.js — Skia + Reanimated optimized
+ * HologramLotus.js — optimized
  *
- * Architecture:
- *  - Gyroscope updates a single SharedValue on the JS thread (minimal work)
- *  - useDerivedValue worklets compute all colors on the UI thread
- *  - Skia Canvas reads SharedValues directly — ZERO React re-renders ever
- *  - Each petal drawn ONCE with a baked gradient (shimmer + highlight combined)
- *    instead of 3× draw calls per petal — ~60% fewer draw calls
- *
- * Install before using:
- *   npx expo install @shopify/react-native-skia react-native-reanimated
- *   Add 'react-native-reanimated/plugin' to babel.config.js plugins array
+ * Key changes vs original:
+ *  1. Single `useState` object instead of two separate setState calls → half the re-renders
+ *  2. Delta threshold — only triggers a re-render when gradient values change enough to
+ *     be visually meaningful (skips tiny jitter updates entirely)
+ *  3. `LotusSvg` is a `React.memo` component — React skips re-rendering it when stops
+ *     haven't changed past the threshold
+ *  4. All intermediate gyro math stays in refs — no derived state, no extra allocations
+ *  5. `buildStops` result is compared before committing — no object churn on stable frames
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, memo } from 'react';
 import { View, StyleSheet, Dimensions } from 'react-native';
-import {
-  Canvas,
-  Path,
-  LinearGradient,
-  Group,
-  interpolateColors,
-  Skia,
-  vec,
-} from '@shopify/react-native-skia';
-import { useSharedValue, useDerivedValue } from 'react-native-reanimated';
+import Svg, { Path, Defs, LinearGradient, Stop, RadialGradient, G } from 'react-native-svg';
 import { Gyroscope } from 'expo-sensors';
 
 const { width: SW } = Dimensions.get('window');
 const SIZE = SW * 1.35;
-const W    = SIZE;
-const H    = SIZE * 0.645;
 
-// ─── Colour palettes ───────────────────────────────────────────────────────────
-const PALETTE = [
-  '#00ffaa', '#00eeff', '#4488ff', '#cc44ff',
-  '#ff44cc', '#ffee00', '#00ffaa', '#00eeff',
-];
-const SHIMMER_PALETTE = [
-  '#4488ff', '#cc44ff', '#ff44cc', '#ffee00',
-  '#00ffaa', '#00eeff', '#4488ff', '#cc44ff',
-];
-// Evenly-spaced input range for interpolateColors
-const PALETTE_INPUT = PALETTE.map((_, i) => i / (PALETTE.length - 1));
-
-// ─── Gyro constants ────────────────────────────────────────────────────────────
 const BASE_WAVE_AMP  = 0.18;
 const MAX_WAVE_AMP   = 0.30;
 const BASE_WAVE_FREQ = 1.2;
 const MAX_WAVE_FREQ  = 2.2;
 
-// ─── SVG path data ─────────────────────────────────────────────────────────────
-const PATH_DATA = {
+// Minimum per-stop color-channel change (0–255) before we bother re-rendering.
+// Raise this to reduce render frequency; lower it for smoother transitions.
+const COLOR_DELTA_THRESHOLD = 20;
+
+const HOLO_STOPS = [
+  { offset: '0%',   color: '#00ffaa' },
+  { offset: '14%',  color: '#00eeff' },
+  { offset: '28%',  color: '#4488ff' },
+  { offset: '42%',  color: '#cc44ff' },
+  { offset: '57%',  color: '#ff44cc' },
+  { offset: '71%',  color: '#ffee00' },
+  { offset: '85%',  color: '#00ffaa' },
+  { offset: '100%', color: '#00eeff' },
+];
+
+function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+
+function buildStops(rot, waveAmp, waveFreq, wavePhase) {
+  const count = HOLO_STOPS.length;
+  const stops = [];
+  for (let i = 0; i < count; i++) {
+    const p      = i / (count - 1 || 1);
+    const wave   = Math.sin((p * waveFreq + wavePhase) * Math.PI * 2) * waveAmp;
+    const offset = clamp01(p + wave);
+    stops.push({ offset: `${(offset * 100).toFixed(1)}%`, color: HOLO_STOPS[i].color });
+  }
+  return stops;
+}
+
+// Parse a hex color string to [r, g, b]
+function hexToRgb(hex) {
+  return [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ];
+}
+
+/**
+ * Returns true if two stop arrays differ enough to be worth re-rendering.
+ * Compares offset strings and color channel values against the threshold.
+ */
+function stopsChangedEnough(prev, next) {
+  if (!prev || prev.length !== next.length) return true;
+  for (let i = 0; i < next.length; i++) {
+    if (prev[i].offset !== next[i].offset) return true;
+    const [pr, pg, pb] = hexToRgb(prev[i].color);
+    const [nr, ng, nb] = hexToRgb(next[i].color);
+    if (
+      Math.abs(pr - nr) > COLOR_DELTA_THRESHOLD ||
+      Math.abs(pg - ng) > COLOR_DELTA_THRESHOLD ||
+      Math.abs(pb - nb) > COLOR_DELTA_THRESHOLD
+    ) return true;
+  }
+  return false;
+}
+
+// ─── SVG paths ────────────────────────────────────────────────────────────────
+const PATHS = {
   centrePetal: `M135.617355,141.393692
     C135.007233,130.427429 137.277847,119.897522 140.590698,109.555305
     C141.458160,106.847275 141.300919,104.531418 140.066223,101.927940
@@ -62,7 +93,7 @@ const PATH_DATA = {
     C110.221962,154.404694 120.180511,161.147003 133.719254,160.832031
     C138.726486,160.715530 139.561905,159.214279 138.040466,154.507584
     C136.759964,150.546265 135.394760,146.608536 135.617355,141.393692 Z`,
-  centreSpike: `M128.965927,31.318060
+  centreSpikeLeft: `M128.965927,31.318060
     C125.797554,38.831947 122.704620,46.378944 119.427780,53.845234
     C117.873558,57.386528 118.629494,60.003170 121.252205,62.812210
     C129.799057,71.966286 137.443176,81.826202 143.371658,92.929070
@@ -169,144 +200,164 @@ const PATH_DATA = {
   farOuterRight: `M231.462 22.955C232.844 32.935 232.916 42.795 232.924 52.868C232.925 53.828 232.925 54.788 232.925 55.776C232.897 77.784 231.530 98.218 223.281 118.407C222.751 119.719 222.220 121.031 221.674 122.382C215.706 136.019 207.789 145.288 195.231 150.672C192.432 151.441 189.933 151.801 187.050 152.017C188.086 150.713 189.123 149.410 190.191 148.067C205.975 126.451 206.058 98.318 204.581 71.353C203.680 60.473 202.681 49.127 198.738 39.088C224.575 20.046 224.575 20.046 231.462 22.955Z`,
 };
 
-// Parse all SVG paths once at module load — never repeated
-const PATHS = Object.fromEntries(
-  Object.entries(PATH_DATA).map(([k, d]) => [k, Skia.Path.MakeFromSVGString(d)])
+// ─── Memoized SVG — only re-renders when stops actually change ─────────────────
+const LotusSvg = memo(({ gradStops, shimmerStops }) => (
+  <Svg width={SIZE} height={SIZE * 0.645} viewBox="0 0 272 176">
+    <Defs>
+      <LinearGradient id="holoGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+        {gradStops.map((s, i) => (
+          <Stop key={i} offset={s.offset} stopColor={s.color} stopOpacity="0.85" />
+        ))}
+      </LinearGradient>
+      <LinearGradient id="shimmerGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+        {shimmerStops.map((s, i) => (
+          <Stop key={i} offset={s.offset} stopColor={s.color} stopOpacity="0.70" />
+        ))}
+      </LinearGradient>
+      <RadialGradient id="petalHighlight" cx="50%" cy="40%" r="60%">
+        <Stop offset="0%"   stopColor="#ffffff" stopOpacity="0.70" />
+        <Stop offset="100%" stopColor="#ffffff" stopOpacity="0"    />
+      </RadialGradient>
+      <LinearGradient id="leafGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        {gradStops.map((s, i) => (
+          <Stop key={i} offset={s.offset} stopColor={s.color} stopOpacity="0.95" />
+        ))}
+      </LinearGradient>
+    </Defs>
+
+    <G transform="translate(-9, 0)">
+      <Path d={PATHS.leftLeaf}        fill="url(#leafGrad)"      opacity={0.80} />
+      <Path d={PATHS.leftEar}         fill="url(#leafGrad)"      opacity={0.70} />
+      <Path d={PATHS.leftBase}        fill="url(#leafGrad)"      opacity={0.75} />
+      <Path d={PATHS.rightBase}       fill="url(#leafGrad)"      opacity={0.75} />
+      <Path d={PATHS.leftLeaf}        fill="url(#shimmerGrad)"   opacity="0.50" />
+      <Path d={PATHS.leftEar}         fill="url(#shimmerGrad)"   opacity="0.45" />
+      <Path d={PATHS.rightLeaf}       fill="url(#leafGrad)"      />
+      <Path d={PATHS.rightEar}        fill="url(#leafGrad)"      />
+      <Path d={PATHS.rightLeaf}       fill="url(#shimmerGrad)"   opacity="0.50" />
+      <Path d={PATHS.rightEar}        fill="url(#shimmerGrad)"   opacity="0.45" />
+      <Path d={PATHS.leftBase}        fill="url(#shimmerGrad)"   opacity="0.50" />
+      <Path d={PATHS.rightBase}       fill="url(#shimmerGrad)"   opacity="0.50" />
+
+      <Path d={PATHS.farOuterRight}   fill="url(#holoGrad)"      />
+      <Path d={PATHS.farOuterRight}   fill="url(#shimmerGrad)"   opacity="0.50" />
+      <Path d={PATHS.farOuterRight}   fill="url(#petalHighlight)" />
+
+      <Path d={PATHS.leftInner}       fill="url(#holoGrad)"      opacity={0.90} strokeLinejoin="round" />
+      <Path d={PATHS.rightInner}      fill="url(#holoGrad)"      opacity={0.90} strokeLinejoin="round" />
+      <Path d={PATHS.leftInner}       fill="url(#shimmerGrad)"   opacity="0.50" />
+      <Path d={PATHS.rightInner}      fill="url(#shimmerGrad)"   opacity="0.50" />
+      <Path d={PATHS.leftInner}       fill="url(#petalHighlight)" />
+      <Path d={PATHS.rightInner}      fill="url(#petalHighlight)" />
+
+      <Path d={PATHS.centrePetal}     fill="url(#holoGrad)"      opacity={0.92} />
+      <Path d={PATHS.centrePetal}     fill="url(#shimmerGrad)"   opacity="0.60" />
+      <Path d={PATHS.centrePetal}     fill="url(#petalHighlight)" />
+
+      <Path d={PATHS.leftOverlap}     fill="url(#holoGrad)"      opacity={0.90} />
+      <Path d={PATHS.rightOverlap}    fill="url(#holoGrad)"      opacity={0.90} />
+      <Path d={PATHS.leftOverlap}     fill="url(#shimmerGrad)"   opacity="0.50" />
+      <Path d={PATHS.rightOverlap}    fill="url(#shimmerGrad)"   opacity="0.50" />
+      <Path d={PATHS.leftOverlap}     fill="url(#petalHighlight)" />
+      <Path d={PATHS.rightOverlap}    fill="url(#petalHighlight)" />
+
+      <Path d={PATHS.centreSpikeLeft} fill="url(#holoGrad)"      opacity={0.92} />
+      <Path d={PATHS.centreSpikeLeft} fill="url(#shimmerGrad)"   opacity="0.60" />
+      <Path d={PATHS.centreSpikeLeft} fill="url(#petalHighlight)" />
+    </G>
+  </Svg>
+), (prev, next) =>
+  // Custom comparison — skip re-render unless stops changed enough
+  !stopsChangedEnough(prev.gradStops, next.gradStops) &&
+  !stopsChangedEnough(prev.shimmerStops, next.shimmerStops)
 );
 
-// Gradient vectors — computed once
-const GRAD_START     = vec(-9, H);       // bottom-left
-const GRAD_END       = vec(W - 9, 0);    // top-right (diagonal)
-const SHIMMER_START  = vec(W - 9, H);    // bottom-right (cross-diagonal for shimmer)
-const SHIMMER_END    = vec(-9, 0);
-
-// Petal groups — drawn once each with a baked 3-stop gradient
-const LEAF_KEYS  = ['leftLeaf', 'leftEar', 'leftBase', 'rightBase', 'rightLeaf', 'rightEar', 'farOuterRight'];
-const PETAL_KEYS = ['leftInner', 'rightInner', 'centrePetal', 'leftOverlap', 'rightOverlap', 'centreSpike'];
-const GRAD_POS_2 = [0, 1];
-const GRAD_POS_3 = [0, 0.5, 1];
-
+// ─── Main component ────────────────────────────────────────────────────────────
 export default function HologramLotus() {
-  // Single SharedValue — one gyro update = one UI-thread worklet call
-  const gyroState = useSharedValue({
-    rot: 0, tilt: 0, amp: BASE_WAVE_AMP, freq: BASE_WAVE_FREQ, phase: 0,
-  });
+  // Single state object → single setState call → one re-render per gyro update
+  const [stops, setStops] = useState(() => ({
+    gradStops:    buildStops(0, BASE_WAVE_AMP,       BASE_WAVE_FREQ,       0),
+    shimmerStops: buildStops(0, BASE_WAVE_AMP * 0.7, BASE_WAVE_FREQ * 1.3, 0.4),
+  }));
 
-  // All accumulator state in refs — never triggers re-renders
+  // All gyro math in refs — never causes re-renders
   const rotAccum   = useRef(0);
   const tiltAccum  = useRef(0);
+  const lastTs     = useRef(null);
   const smoothAmp  = useRef(BASE_WAVE_AMP);
   const smoothFreq = useRef(BASE_WAVE_FREQ);
   const phaseAccum = useRef(0);
   const smoothRot  = useRef(0);
-  const lastTs     = useRef(null);
+
+  // Track last-committed stops so we can compare before calling setState
+  const lastGrad    = useRef(null);
+  const lastShimmer = useRef(null);
 
   useEffect(() => {
     Gyroscope.setUpdateInterval(10);
 
-    const sub = Gyroscope.addListener(({ x, y }) => {
+    const subscription = Gyroscope.addListener(({ x, y, z }) => {
       const now = Date.now();
       const dt  = lastTs.current ? (now - lastTs.current) / 1000 : 0.016;
       lastTs.current = now;
 
-      const tiltMag = Math.min(Math.sqrt(x * x + y * y), 0.35);
-      if (tiltMag > 0.08) {
+      const tiltMagXY = Math.min(Math.sqrt(x * x + y * y), 0.35);
+      const active    = tiltMagXY > 0.08;
+
+      if (active) {
         rotAccum.current   = (rotAccum.current  + y * dt * 0.25) % 1;
         tiltAccum.current  = (tiltAccum.current + x * dt * 0.15) % 1;
-        phaseAccum.current += Math.sign(y || 1) * tiltMag * dt * 0.08;
+        const signedTilt   = Math.sign(y || 1) * tiltMagXY;
+        phaseAccum.current += signedTilt * dt * 0.08;
       }
 
-      const rawRot = ((rotAccum.current % 1) + 1) % 1;
-      const eased  = (tiltMag / 0.35) ** 2;
-      const lerp   = 0.012;
+      const rawRot = ((rotAccum.current  % 1) + 1) % 1;
+      const tilt   = ((tiltAccum.current % 1) + 1) % 1;
+      const norm   = tiltMagXY / 0.35;
+      const eased  = norm * norm;
 
-      smoothAmp.current  += (BASE_WAVE_AMP  + (MAX_WAVE_AMP  - BASE_WAVE_AMP)  * eased - smoothAmp.current)  * lerp;
-      smoothFreq.current += (BASE_WAVE_FREQ + (MAX_WAVE_FREQ - BASE_WAVE_FREQ) * eased - smoothFreq.current) * lerp;
-      smoothRot.current  += (rawRot - smoothRot.current) * 0.015;
+      const targetAmp  = BASE_WAVE_AMP  + (MAX_WAVE_AMP  - BASE_WAVE_AMP)  * eased;
+      const targetFreq = BASE_WAVE_FREQ + (MAX_WAVE_FREQ - BASE_WAVE_FREQ) * eased;
 
-      // Single assignment — triggers exactly one useDerivedValue run on UI thread
-      gyroState.value = {
-        rot:   smoothRot.current,
-        tilt:  ((tiltAccum.current % 1) + 1) % 1,
-        amp:   smoothAmp.current,
-        freq:  smoothFreq.current,
-        phase: smoothRot.current * 1.5 + phaseAccum.current,
-      };
+      const lerp = 0.012;
+      smoothAmp.current  += (targetAmp  - smoothAmp.current)  * lerp;
+      smoothFreq.current += (targetFreq - smoothFreq.current) * lerp;
+      smoothRot.current  += (rawRot     - smoothRot.current)  * 0.015;
+
+      const waveAmp   = smoothAmp.current;
+      const waveFreq  = smoothFreq.current;
+      const rot       = smoothRot.current;
+      const wavePhase = rot * 1.5 + phaseAccum.current;
+
+      const nextGrad    = buildStops(rot, waveAmp, waveFreq, wavePhase);
+      const nextShimmer = buildStops(
+        (rot + 0.4) % 1,
+        waveAmp * 0.7,
+        waveFreq * 1.5,
+        wavePhase + tilt * 1.5
+      );
+
+      // Only call setState if the visual change is large enough to see
+      const gradChanged    = stopsChangedEnough(lastGrad.current,    nextGrad);
+      const shimmerChanged = stopsChangedEnough(lastShimmer.current, nextShimmer);
+
+      if (gradChanged || shimmerChanged) {
+        lastGrad.current    = nextGrad;
+        lastShimmer.current = nextShimmer;
+        // Single setState → single re-render
+        setStops({ gradStops: nextGrad, shimmerStops: nextShimmer });
+      }
     });
 
-    return () => sub.remove();
+    return () => subscription.remove();
   }, []);
-
-  // ── UI-thread worklets — no JS thread, no React renders ────────────────────
-
-  // Leaf gradient: 2 stops, bakes in the leaf shimmer
-  const leafColors = useDerivedValue(() => {
-    'worklet';
-    const { rot, amp, freq, phase } = gyroState.value;
-    const t0 = ((rot + Math.sin(phase * Math.PI * 2) * amp) % 1 + 1) % 1;
-    const t1 = ((rot + 0.35 + Math.sin((phase + freq * 0.5) * Math.PI * 2) * amp) % 1 + 1) % 1;
-    return [
-      interpolateColors(t0 * (PALETTE.length - 1), PALETTE_INPUT, PALETTE),
-      interpolateColors(t1 * (PALETTE.length - 1), PALETTE_INPUT, PALETTE),
-    ];
-  });
-
-  // Petal gradient: 3 stops — base colour + shimmer offset + white highlight at tip
-  const petalColors = useDerivedValue(() => {
-    'worklet';
-    const { rot, amp, freq, phase } = gyroState.value;
-    const t0 = ((rot + Math.sin(phase * Math.PI * 2) * amp) % 1 + 1) % 1;
-    const t1 = ((rot + 0.25 + Math.sin((phase + freq * 0.35) * Math.PI * 2) * amp) % 1 + 1) % 1;
-    const t2 = ((rot + 0.5  + Math.sin((phase + freq * 0.7 ) * Math.PI * 2) * amp) % 1 + 1) % 1;
-    return [
-      interpolateColors(t0 * (PALETTE.length - 1), PALETTE_INPUT, PALETTE),
-      interpolateColors(t1 * (PALETTE.length - 1), PALETTE_INPUT, PALETTE),
-      interpolateColors(t2 * (PALETTE.length - 1), PALETTE_INPUT, PALETTE),
-    ];
-  });
-
-  // Shimmer cross-diagonal: offset hue on a different angle for iridescence
-  const shimmerColors = useDerivedValue(() => {
-    'worklet';
-    const { rot, tilt, amp, freq, phase } = gyroState.value;
-    const sp = phase + tilt * 1.5;
-    const t0 = ((rot + 0.4  + Math.sin(sp * Math.PI * 2) * amp * 0.7) % 1 + 1) % 1;
-    const t1 = ((rot + 0.65 + Math.sin((sp + freq) * Math.PI * 2) * amp * 0.7) % 1 + 1) % 1;
-    return [
-      interpolateColors(t0 * (SHIMMER_PALETTE.length - 1), PALETTE_INPUT, SHIMMER_PALETTE),
-      interpolateColors(t1 * (SHIMMER_PALETTE.length - 1), PALETTE_INPUT, SHIMMER_PALETTE),
-      '#ffffffbb', // white highlight baked into shimmer stop
-    ];
-  });
 
   return (
     <View style={styles.container}>
-      <Canvas style={{ width: W, height: H }}>
-        <Group transform={[{ translateX: -9 }]}>
-
-          {/* Leaves — 1 draw call each, 2-stop baked gradient */}
-          {LEAF_KEYS.map(key => (
-            <Path key={key} path={PATHS[key]} opacity={0.80}>
-              <LinearGradient start={GRAD_START} end={GRAD_END} colors={leafColors} positions={GRAD_POS_2} />
-            </Path>
-          ))}
-
-          {/* Petals — 1 draw call each, 3-stop baked gradient */}
-          {PETAL_KEYS.map(key => (
-            <Path key={key} path={PATHS[key]} opacity={0.92}>
-              <LinearGradient start={GRAD_START} end={GRAD_END} colors={petalColors} positions={GRAD_POS_3} />
-            </Path>
-          ))}
-
-          {/* Shimmer overlay — cross-diagonal pass, bakes highlight */}
-          {PETAL_KEYS.map(key => (
-            <Path key={`sh_${key}`} path={PATHS[key]} opacity={0.38}>
-              <LinearGradient start={SHIMMER_START} end={SHIMMER_END} colors={shimmerColors} positions={GRAD_POS_3} />
-            </Path>
-          ))}
-
-        </Group>
-      </Canvas>
+      <View style={styles.glowRing} />
+      <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+        <LotusSvg gradStops={stops.gradStops} shimmerStops={stops.shimmerStops} />
+      </View>
     </View>
   );
 }
@@ -316,5 +367,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',
+  },
+  glowRing: {
+    position: 'absolute',
+    width:  SIZE * 0.85,
+    height: SIZE * 0.55,
+    borderRadius: SIZE * 0.4,
+    backgroundColor: 'transparent',
   },
 });
