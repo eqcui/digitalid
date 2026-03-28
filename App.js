@@ -50,51 +50,80 @@ function RootNavigator() {
   );
 }
 
+const MAX_AUTO_RETRIES = 3;
+
+async function stopAndResetTor() {
+  try {
+    const tor = getTor();
+    if (tor) await tor.stopIfRunning();
+  } catch (_) {}
+  resetTor();
+}
+
 export default function App() {
   const [torReady,    setTorReady]    = useState(false);
   const [torProgress, setTorProgress] = useState(0);
   const [torError,    setTorError]    = useState(null);
+  const [attempt,     setAttempt]     = useState(1);
   const [retryKey,    setRetryKey]    = useState(0);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function bootstrap() {
+    async function tryBootstrap(attemptNum) {
+      // Always stop and recreate so bootstrapPromise is never a stale
+      // rejected Promise from a previous failed attempt.
+      if (attemptNum > 1) {
+        await stopAndResetTor();
+        if (cancelled) return;
+      }
+
+      const tor = getTor();
+      if (!tor) {
+        setTorError('Failed to initialize Tor. Please restart the app.');
+        return;
+      }
+
       try {
-        const tor = getTor();
-
-        if (!tor) {
-          setTorError('Failed to initialize Tor. Please restart the app.');
-          return;
-        }
-
         await tor.startIfNotStarted();
-
-        let attempts = 0;
-        while (attempts < 60) {
-          if (cancelled) return;
-
-          const status = await tor.getDaemonStatus();
-
-          if (status === 'DONE') {
-            setTorReady(true);
-            return;
-          }
-
-          const match = status.match(/PROGRESS=(\d+)/);
-          if (match) setTorProgress(Number(match[1]));
-
-          await new Promise(r => setTimeout(r, 1000));
-          attempts++;
-        }
-
-        setTorError('Tor bootstrap timed out. Check your connection.');
       } catch (err) {
-        if (!cancelled) setTorError(err.message || 'Failed to start Tor.');
+        if (cancelled) return;
+        if (attemptNum < MAX_AUTO_RETRIES) {
+          setAttempt(attemptNum + 1);
+          setTorProgress(0);
+          await new Promise(r => setTimeout(r, 2000));
+          if (!cancelled) tryBootstrap(attemptNum + 1);
+        } else {
+          setTorError('failed');
+        }
+        return;
+      }
+
+      let polls = 0;
+      while (polls < 60) {
+        if (cancelled) return;
+        const status = await tor.getDaemonStatus();
+        if (status === 'DONE') { setTorReady(true); return; }
+        const match = status.match(/PROGRESS=(\d+)/);
+        if (match) setTorProgress(Number(match[1]));
+        await new Promise(r => setTimeout(r, 1000));
+        polls++;
+      }
+
+      if (cancelled) return;
+      if (attemptNum < MAX_AUTO_RETRIES) {
+        setAttempt(attemptNum + 1);
+        setTorProgress(0);
+        await new Promise(r => setTimeout(r, 2000));
+        if (!cancelled) tryBootstrap(attemptNum + 1);
+      } else {
+        setTorError('failed');
       }
     }
 
-    bootstrap();
+    setAttempt(1);
+    setTorProgress(0);
+    tryBootstrap(1);
 
     return () => {
       cancelled = true;
@@ -106,20 +135,17 @@ export default function App() {
   const handleRetry = useCallback(async () => {
     setTorError(null);
     setTorProgress(0);
-    // Stop the daemon and reset the singleton so startIfNotStarted
-    // gets a clean slate on the next attempt.
-    try {
-      const tor = getTor();
-      if (tor) await tor.stopIfRunning();
-    } catch (_) {}
-    resetTor();
+    setAttempt(1);
+    await stopAndResetTor();
     setRetryKey(k => k + 1);
   }, []);
 
   if (torError) {
     return (
       <View style={styles.splash}>
-        <Text style={styles.errorText}>⚠️ Tor failed to connect.{'\n'}Check your network and try again.</Text>
+        <Text style={styles.errorText}>
+          Unable to connect to Tor.{'\n'}Check your network and try again.
+        </Text>
         <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
@@ -132,7 +158,9 @@ export default function App() {
       <View style={styles.splash}>
         <ActivityIndicator color="#fff" size="large" />
         <Text style={styles.torText}>
-          Connecting securely…{torProgress > 0 ? ` ${torProgress}%` : ''}
+          Connecting securely…
+          {torProgress > 0 ? ` ${torProgress}%` : ''}
+          {attempt > 1 ? `  (attempt ${attempt}/${MAX_AUTO_RETRIES})` : ''}
         </Text>
       </View>
     );
