@@ -169,6 +169,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Discard the app.json version patch (build-only change, not committed)
+          # so git pull --rebase has a clean working tree
+          git restore app.json
           git pull --rebase origin main
           git add altstore-source.json
           git commit -m "Update SideStore source to v${APP_VERSION} [skip ci]"
