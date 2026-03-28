@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, ActivityIndicator, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -50,7 +51,7 @@ function RootNavigator() {
   );
 }
 
-const MAX_AUTO_RETRIES = 3;
+const KEEP_AWAKE_TAG = 'tor-bootstrap';
 
 async function stopAndResetTor() {
   try {
@@ -63,95 +64,76 @@ async function stopAndResetTor() {
 export default function App() {
   const [torReady,    setTorReady]    = useState(false);
   const [torProgress, setTorProgress] = useState(0);
-  const [torError,    setTorError]    = useState(null);
   const [attempt,     setAttempt]     = useState(1);
   const [retryKey,    setRetryKey]    = useState(0);
 
   useEffect(() => {
     let cancelled = false;
 
+    // Keep screen on so the device doesn't lock mid-bootstrap
+    activateKeepAwakeAsync(KEEP_AWAKE_TAG);
+
     async function tryBootstrap(attemptNum) {
-      // Always stop and recreate so bootstrapPromise is never a stale
-      // rejected Promise from a previous failed attempt.
       if (attemptNum > 1) {
         await stopAndResetTor();
+        if (cancelled) return;
+        await new Promise(r => setTimeout(r, 2000));
         if (cancelled) return;
       }
 
       const tor = getTor();
-      if (!tor) {
-        setTorError('Failed to initialize Tor. Please restart the app.');
-        return;
-      }
+      if (!tor) return;
 
       try {
         await tor.startIfNotStarted();
-      } catch (err) {
+      } catch (_) {
         if (cancelled) return;
-        if (attemptNum < MAX_AUTO_RETRIES) {
-          setAttempt(attemptNum + 1);
-          setTorProgress(0);
-          await new Promise(r => setTimeout(r, 2000));
-          if (!cancelled) tryBootstrap(attemptNum + 1);
-        } else {
-          setTorError('failed');
-        }
+        setAttempt(a => a + 1);
+        setTorProgress(0);
+        tryBootstrap(attemptNum + 1);
         return;
       }
 
+      // Poll until DONE — no hard limit, retry on stall
       let polls = 0;
-      while (polls < 60) {
+      while (true) {
         if (cancelled) return;
-        const status = await tor.getDaemonStatus();
-        if (status === 'DONE') { setTorReady(true); return; }
+        const status = await tor.getDaemonStatus().catch(() => '');
+        if (status === 'DONE') {
+          deactivateKeepAwake(KEEP_AWAKE_TAG);
+          setTorReady(true);
+          return;
+        }
         const match = status.match(/PROGRESS=(\d+)/);
         if (match) setTorProgress(Number(match[1]));
         await new Promise(r => setTimeout(r, 1000));
         polls++;
-      }
-
-      if (cancelled) return;
-      if (attemptNum < MAX_AUTO_RETRIES) {
-        setAttempt(attemptNum + 1);
-        setTorProgress(0);
-        await new Promise(r => setTimeout(r, 2000));
-        if (!cancelled) tryBootstrap(attemptNum + 1);
-      } else {
-        setTorError('failed');
+        // After 90s of polling with no DONE, restart the daemon and try again
+        if (polls >= 90) {
+          setAttempt(a => a + 1);
+          setTorProgress(0);
+          tryBootstrap(attemptNum + 1);
+          return;
+        }
       }
     }
 
-    setAttempt(1);
-    setTorProgress(0);
     tryBootstrap(1);
 
     return () => {
       cancelled = true;
+      deactivateKeepAwake(KEEP_AWAKE_TAG);
       const tor = getTor();
       if (tor) tor.stopIfRunning().catch(() => {});
     };
   }, [retryKey]);
 
   const handleRetry = useCallback(async () => {
-    setTorError(null);
-    setTorProgress(0);
     setAttempt(1);
+    setTorProgress(0);
     await stopAndResetTor();
     setRetryKey(k => k + 1);
   }, []);
-
-  if (torError) {
-    return (
-      <View style={styles.splash}>
-        <Text style={styles.errorText}>
-          Unable to connect to Tor.{'\n'}Check your network and try again.
-        </Text>
-        <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
-          <Text style={styles.retryText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
 
   if (!torReady) {
     return (
@@ -160,7 +142,7 @@ export default function App() {
         <Text style={styles.torText}>
           Connecting securely…
           {torProgress > 0 ? ` ${torProgress}%` : ''}
-          {attempt > 1 ? `  (attempt ${attempt}/${MAX_AUTO_RETRIES})` : ''}
+          {attempt > 1 ? `  (attempt ${attempt})` : ''}
         </Text>
       </View>
     );
@@ -186,23 +168,5 @@ const styles = StyleSheet.create({
   torText: {
     color: 'rgba(255,255,255,0.7)',
     fontSize: 14,
-  },
-  errorText: {
-    color: '#FF3B30',
-    fontSize: 14,
-    textAlign: 'center',
-    paddingHorizontal: 32,
-  },
-  retryButton: {
-    marginTop: 8,
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 8,
-  },
-  retryText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
   },
 });
