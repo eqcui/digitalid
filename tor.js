@@ -19,6 +19,7 @@ export function getTor() {
       _tor = TorBridgeFactory({
         stopDaemonOnBackground: true,
         startDaemonOnActive:    true,
+        bootstrapTimeoutMs:     120000, // 2 min — default 25s is too short for mobile
       });
     } catch (e) {
       console.warn('[tor.js] TorBridgeFactory threw:', e);
