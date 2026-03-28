@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, ActivityIndicator, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // getTor() is imported but NOT called here at module level.
 // It is only called inside useEffect, after the native bridge is ready.
-import { getTor } from './tor';
+import { getTor, resetTor } from './tor';
 
 import { AuthProvider, useAuth } from './AuthContext';
 import HomeScreen     from './HomeScreen';
@@ -54,10 +54,9 @@ export default function App() {
   const [torReady,    setTorReady]    = useState(false);
   const [torProgress, setTorProgress] = useState(0);
   const [torError,    setTorError]    = useState(null);
+  const [retryKey,    setRetryKey]    = useState(0);
 
   useEffect(() => {
-    // getTor() is safe to call here — the native bridge is ready
-    // by the time any useEffect runs.
     let cancelled = false;
 
     async function bootstrap() {
@@ -99,16 +98,31 @@ export default function App() {
 
     return () => {
       cancelled = true;
-      // getTor() is safe here too — cleanup runs after mount
       const tor = getTor();
       if (tor) tor.stopIfRunning().catch(() => {});
     };
+  }, [retryKey]);
+
+  const handleRetry = useCallback(async () => {
+    setTorError(null);
+    setTorProgress(0);
+    // Stop the daemon and reset the singleton so startIfNotStarted
+    // gets a clean slate on the next attempt.
+    try {
+      const tor = getTor();
+      if (tor) await tor.stopIfRunning();
+    } catch (_) {}
+    resetTor();
+    setRetryKey(k => k + 1);
   }, []);
 
   if (torError) {
     return (
       <View style={styles.splash}>
-        <Text style={styles.errorText}>⚠️ {torError}</Text>
+        <Text style={styles.errorText}>⚠️ Tor failed to connect.{'\n'}Check your network and try again.</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+          <Text style={styles.retryText}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -150,5 +164,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     paddingHorizontal: 32,
+  },
+  retryButton: {
+    marginTop: 8,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 8,
+  },
+  retryText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

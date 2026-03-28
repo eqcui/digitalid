@@ -27,3 +27,7 @@ export function getTor() {
   }
   return _tor;
 }
+
+export function resetTor() {
+  _tor = null;
+}
