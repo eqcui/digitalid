@@ -4,7 +4,9 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import tor from './tor';
+// getTor() is imported but NOT called here at module level.
+// It is only called inside useEffect, after the native bridge is ready.
+import { getTor } from './tor';
 
 import { AuthProvider, useAuth } from './AuthContext';
 import HomeScreen     from './HomeScreen';
@@ -54,10 +56,19 @@ export default function App() {
   const [torError,    setTorError]    = useState(null);
 
   useEffect(() => {
+    // getTor() is safe to call here — the native bridge is ready
+    // by the time any useEffect runs.
     let cancelled = false;
 
     async function bootstrap() {
       try {
+        const tor = getTor();
+
+        if (!tor) {
+          setTorError('Failed to initialize Tor. Please restart the app.');
+          return;
+        }
+
         await tor.startIfNotStarted();
 
         let attempts = 0;
@@ -88,7 +99,9 @@ export default function App() {
 
     return () => {
       cancelled = true;
-      tor.stopIfRunning().catch(() => {});
+      // getTor() is safe here too — cleanup runs after mount
+      const tor = getTor();
+      if (tor) tor.stopIfRunning().catch(() => {});
     };
   }, []);
 

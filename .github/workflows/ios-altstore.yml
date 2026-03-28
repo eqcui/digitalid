@@ -21,10 +21,9 @@ jobs:
         run: npm ci
 
       - name: Generate iOS Directory (Expo Prebuild)
-        run: npx expo prebuild --platform ios --no-install
+        run: npx expo prebuild --platform ios --no-install --clean
 
       - name: Set Xcode Version
-        # We are using Xcode 16.2 based on your previous 'ls' output
         run: |
           sudo xcode-select -s /Applications/Xcode_16.2.app
           xcodebuild -version
@@ -35,11 +34,45 @@ jobs:
           echo "export NODE_BINARY=$(which node)" > .xcode.env
           cp .xcode.env ios/.xcode.env
 
+      - name: Disable New Architecture (required for react-native-tor)
+        run: |
+          # Ensure RCT_NEW_ARCH_ENABLED is off in the Podfile
+          # Expo prebuild sets this from app.json newArchEnabled:false
+          # but we double-check here as a safety net
+          if grep -q "newArchEnabled" ios/Podfile; then
+            echo "Podfile already has newArchEnabled set"
+          else
+            # Insert before the last 'end' in the Podfile
+            sed -i '' 's/:new_arch_enabled => true/:new_arch_enabled => false/g' ios/Podfile || true
+          fi
+          # Also patch Pods config if present
+          if [ -f ios/Podfile.properties.json ]; then
+            cat ios/Podfile.properties.json
+            # Use node to safely patch the JSON
+            node -e "
+              const fs = require('fs');
+              const p = 'ios/Podfile.properties.json';
+              const json = JSON.parse(fs.readFileSync(p, 'utf8'));
+              json['newArchEnabled'] = 'false';
+              fs.writeFileSync(p, JSON.stringify(json, null, 2));
+              console.log('Patched Podfile.properties.json:', json);
+            "
+          fi
+
       - name: Install CocoaPods
         run: |
           cd ios && pod install
         env:
           CP_HOMEBREW_CLEAN_INSTALL_AFTER_UPDATE: 1
+
+      - name: Verify react-native-tor is linked
+        run: |
+          if grep -r "RNTor" ios/Pods --include="*.h" -l; then
+            echo "✅ react-native-tor native module found in Pods"
+          else
+            echo "❌ react-native-tor native module NOT found — build may fail"
+            exit 1
+          fi
 
       - name: Build Unsigned App
         run: |
@@ -54,7 +87,8 @@ jobs:
                      CODE_SIGN_ENTITLEMENTS="" \
                      CODE_SIGN_IDENTITY="" \
                      PROVISIONING_PROFILE_SPECIFIER="" \
-                     GENERATE_INFOPLIST_FILE=YES
+                     GENERATE_INFOPLIST_FILE=YES \
+                     RCT_NEW_ARCH_ENABLED=0
 
       - name: Create IPA for AltStore
         run: |

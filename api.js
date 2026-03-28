@@ -2,16 +2,23 @@
  * api.js
  * ------
  * All network calls routed through Tor.
- * Imports the tor singleton from tor.js — no circular dependency.
+ *
+ * Uses getTor() so the native bridge is never accessed at module load time.
  */
 
-import tor from './tor';
+import { getTor } from './tor';
 
 export const API_BASE_URL = 'http://lnidc36fty6fcv3zda6xgmmmxdg4mvcdiw3oayrx6wru7rgbfpnrnvyd.onion';
 
 // ─── Internal request helper ──────────────────────────────────────────────────
 
 async function request(path, options = {}, token = null) {
+  const tor = getTor();
+
+  if (!tor) {
+    throw new Error('Network error. Tor is not initialized yet. Please wait and try again.');
+  }
+
   const url    = `${API_BASE_URL}/v1${path}`;
   const method = (options.method || 'GET').toUpperCase();
   const body   = options.body   || '';
