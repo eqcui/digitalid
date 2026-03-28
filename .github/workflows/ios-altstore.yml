@@ -69,20 +69,17 @@ jobs:
 
       - name: Verify react-native-tor is linked
         run: |
-          # Check for the actual library binary or the pod structure
-          if [ -d "ios/Pods/react-native-tor" ] || [ -f "ios/Pods/Local Podspecs/react-native-tor.podspec.json" ]; then
-            echo "✅ react-native-tor found"
+          if grep -q "react-native-tor" ios/Podfile.lock; then
+            echo "✅ react-native-tor successfully found in Podfile.lock"
           else
-            echo "❌ react-native-tor NOT found in Pods."
-            echo "Checking Podfile.lock for traces..."
-            grep "react-native-tor" ios/Podfile.lock || echo "Not in lockfile either"
+            echo "❌ react-native-tor NOT found in lockfile."
             exit 1
-          fi
           fi
 
       - name: Build Unsigned App
         run: |
           SCHEME_NAME=$(ls ios | grep .xcworkspace | cut -f 1 -d '.')
+          # We force the legacy architecture at the build level here
           xcodebuild -workspace ios/*.xcworkspace \
                      -scheme "$SCHEME_NAME" \
                      -configuration Release \
@@ -94,6 +91,7 @@ jobs:
                      CODE_SIGN_IDENTITY="" \
                      PROVISIONING_PROFILE_SPECIFIER="" \
                      GENERATE_INFOPLIST_FILE=YES \
+                     OTHER_CPLUSPLUSFLAGS="-DFOLLY_NO_CONFIG -DPOD_CONFIGURATION_HEADER=\"\\\"<$(ls ios/Pods/Target\ Support\ Files/Pods-$SCHEME_NAME/Pods-$SCHEME_NAME-desc.xcconfig)>\\\"\"" \
                      RCT_NEW_ARCH_ENABLED=0
 
       - name: Create IPA for AltStore
