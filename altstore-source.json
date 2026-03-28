@@ -1,0 +1,16 @@
+{
+  "name": "Service NSW",
+  "identifier": "com.eqcui.ServiceNSW.source",
+  "apps": [
+    {
+      "name": "Service NSW",
+      "bundleIdentifier": "com.eqcui.ServiceNSW",
+      "developerName": "eqcui",
+      "subtitle": "Secure digital identity",
+      "localizedDescription": "Service NSW digital ID app with Tor-based privacy routing.",
+      "iconURL": "https://raw.githubusercontent.com/eqcui/digitalid/main/assets/icon.png",
+      "versions": []
+    }
+  ],
+  "news": []
+}

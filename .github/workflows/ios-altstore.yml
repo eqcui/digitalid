@@ -4,23 +4,45 @@ on:
   push:
     branches: [ main ]
 
+permissions:
+  contents: write
+
 jobs:
   build-ios:
     runs-on: macos-14
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # Full history needed so git push back to main works cleanly
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
+
+      - name: Set app version
+        run: echo "APP_VERSION=1.0.${{ github.run_number }}" >> $GITHUB_ENV
+
       - name: Install Dependencies
         run: |
           # --legacy-peer-deps is required because react-native-tor (0.1.8) has loose
           # peer dependency declarations that conflict with strict npm resolution
           npm install --legacy-peer-deps
+
+      - name: Patch version into app.json
+        run: |
+          node -e "
+          const fs = require('fs');
+          const cfg = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+          cfg.expo.version = process.env.APP_VERSION;
+          cfg.expo.ios = cfg.expo.ios || {};
+          cfg.expo.ios.buildNumber = '${{ github.run_number }}';
+          fs.writeFileSync('app.json', JSON.stringify(cfg, null, 2));
+          console.log('Patched version to', process.env.APP_VERSION);
+          "
 
       - name: Generate iOS Directory (Expo Prebuild)
         run: npx expo prebuild --platform ios --no-install --clean
@@ -91,7 +113,6 @@ jobs:
           echo "Building scheme: $SCHEME_NAME"
 
           # 2. Run the build with Legacy Architecture flags
-          # We removed the OTHER_CPLUSPLUSFLAGS hack that was failing
           xcodebuild -workspace ios/*.xcworkspace \
                      -scheme "$SCHEME_NAME" \
                      -configuration Release \
@@ -106,14 +127,55 @@ jobs:
                      RCT_NEW_ARCH_ENABLED=0 \
                      RCT_BRIDGELESS_ENABLED=0
 
-      - name: Create IPA for AltStore
+      - name: Create IPA for SideStore
         run: |
           mkdir -p Payload
           APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" | head -n 1)
           cp -r "$APP_PATH" Payload/
           zip -r Service-NSW-Unsigned.ipa Payload
 
-      - name: Upload IPA to GitHub
+      - name: Create GitHub Release
+        run: |
+          gh release create "v${APP_VERSION}" \
+            --title "Service NSW v${APP_VERSION}" \
+            --notes "Automated build ${{ github.run_number }} — commit ${{ github.sha }}" \
+            "Service-NSW-Unsigned.ipa#Service-NSW-Unsigned.ipa"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update SideStore source JSON
+        run: |
+          IPA_SIZE=$(wc -c < Service-NSW-Unsigned.ipa | tr -d ' ')
+          DOWNLOAD_URL="https://github.com/eqcui/digitalid/releases/download/v${APP_VERSION}/Service-NSW-Unsigned.ipa"
+          BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          node -e "
+          const fs = require('fs');
+          const source = JSON.parse(fs.readFileSync('altstore-source.json', 'utf8'));
+          source.apps[0].versions.unshift({
+            version: process.env.APP_VERSION,
+            date: '${BUILD_DATE}',
+            downloadURL: '${DOWNLOAD_URL}',
+            size: parseInt('${IPA_SIZE}')
+          });
+          // Keep only last 10 versions
+          source.apps[0].versions = source.apps[0].versions.slice(0, 10);
+          fs.writeFileSync('altstore-source.json', JSON.stringify(source, null, 2) + '\n');
+          console.log('Updated source to', process.env.APP_VERSION);
+          "
+
+      - name: Commit updated source JSON
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
+          git add altstore-source.json
+          git commit -m "Update SideStore source to v${APP_VERSION} [skip ci]"
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload IPA as artifact (backup)
         uses: actions/upload-artifact@v4
         with:
           name: Service-NSW-IPA
