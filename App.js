@@ -101,7 +101,7 @@ export default function App() {
         if (cancelled) return;
         const status = await tor.getDaemonStatus().catch(() => '');
         setTorStatus(status);
-        if (status === 'DONE') {
+        if (status.replace(/"/g, '').toUpperCase() === 'DONE') {
           deactivateKeepAwake(KEEP_AWAKE_TAG);
           setTorReady(true);
           return;
