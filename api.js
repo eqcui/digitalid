@@ -41,7 +41,9 @@ async function request(path, options = {}, token = null) {
       response = await tor.request(url, method, body, headers);
     }
   } catch (err) {
-    throw new Error('Network error. Check your connection and try again.');
+    const detail = err?.message || err?.toString() || 'unknown';
+    console.warn('[api] request failed:', method, path, detail);
+    throw new Error(`Network error: ${detail}`);
   }
 
   // response.json may arrive as a string or already parsed object
