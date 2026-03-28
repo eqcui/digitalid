@@ -78,8 +78,12 @@ jobs:
 
       - name: Build Unsigned App
         run: |
+          # 1. Get the Scheme Name automatically
           SCHEME_NAME=$(ls ios | grep .xcworkspace | cut -f 1 -d '.')
-          # We force the legacy architecture at the build level here
+          echo "Building scheme: $SCHEME_NAME"
+
+          # 2. Run the build with Legacy Architecture flags
+          # We removed the OTHER_CPLUSPLUSFLAGS hack that was failing
           xcodebuild -workspace ios/*.xcworkspace \
                      -scheme "$SCHEME_NAME" \
                      -configuration Release \
@@ -91,8 +95,8 @@ jobs:
                      CODE_SIGN_IDENTITY="" \
                      PROVISIONING_PROFILE_SPECIFIER="" \
                      GENERATE_INFOPLIST_FILE=YES \
-                     OTHER_CPLUSPLUSFLAGS="-DFOLLY_NO_CONFIG -DPOD_CONFIGURATION_HEADER=\"\\\"<$(ls ios/Pods/Target\ Support\ Files/Pods-$SCHEME_NAME/Pods-$SCHEME_NAME-desc.xcconfig)>\\\"\"" \
-                     RCT_NEW_ARCH_ENABLED=0
+                     RCT_NEW_ARCH_ENABLED=0 \
+                     RCT_BRIDGELESS_ENABLED=0
 
       - name: Create IPA for AltStore
         run: |
