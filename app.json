@@ -18,7 +18,10 @@
       "infoPlist": {
         "NSCameraUsageDescription": "This app needs camera access to scan QR codes on digital licences and credentials.",
         "CADisableMinimumFrameDuration": true,
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
       }
     },
     "android": {
