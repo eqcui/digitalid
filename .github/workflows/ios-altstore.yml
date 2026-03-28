@@ -18,7 +18,8 @@ jobs:
           cache: 'npm'
       - name: Install Dependencies
         run: |
-          # We use --legacy-peer-deps to handle the Reanimated/Skia version conflict
+          # --legacy-peer-deps is required because react-native-tor (0.1.8) has loose
+          # peer dependency declarations that conflict with strict npm resolution
           npm install --legacy-peer-deps
 
       - name: Generate iOS Directory (Expo Prebuild)
@@ -58,6 +59,13 @@ jobs:
           console.log('--- PATCHED PODFILE ---');
           console.log(fs.readFileSync(path, 'utf8'));
           "
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: ios/Pods
+          key: pods-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: pods-
 
       - name: Install CocoaPods
         run: |
