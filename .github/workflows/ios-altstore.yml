@@ -35,36 +35,49 @@ jobs:
           echo "export NODE_BINARY=$(which node)" > .xcode.env
           cp .xcode.env ios/.xcode.env
 
-      - name: Patch Podfile for Tor and Disable New Arch
+      - name: Patch Podfile and Disable New Arch
         run: |
           node -e "
           const fs = require('fs');
           const path = 'ios/Podfile';
           let content = fs.readFileSync(path, 'utf8');
 
-          // 1. Force New Architecture OFF in the Podfile header
-          content = content.replace(/:new_arch_enabled => .*,/g, ':new_arch_enabled => false,');
-          
-          // 2. Explicitly add react-native-tor to the main target
-          // We look for the first 'target' block
-          const torPod = \"\n  pod 'react-native-tor', :path => '../node_modules/react-native-tor'\n\";
-          if (!content.includes('react-native-tor')) {
-            content = content.replace(/target '.*' do/, (match) => match + torPod);
+          // 1. Force New Architecture OFF globally
+          // This overrides the environment and the properties file
+          content = 'ENV[\"RCT_NEW_ARCH_ENABLED\"] = \"0\"\n' + content;
+
+          // 2. Add Tor pod at the very end of the main target block
+          // We look for the LAST 'end' in the file (which usually closes the main target)
+          const torLine = \"\n  pod 'react-native-tor', :path => '../node_modules/react-native-tor'\n\";
+          const lastEndIndex = content.lastIndexOf('end');
+          if (lastEndIndex !== -1 && !content.includes('react-native-tor')) {
+            content = content.slice(0, lastEndIndex) + torLine + content.slice(lastEndIndex);
           }
 
           fs.writeFileSync(path, content);
-          console.log('Successfully patched Podfile:');
-          console.log(content);
+          console.log('--- PATCHED PODFILE ---');
+          console.log(fs.readFileSync(path, 'utf8'));
           "
+
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          # Use --repo-update to ensure we have the latest specs for dependencies
+          pod install --repo-update
+        env:
+          RCT_NEW_ARCH_ENABLED: 0
+
       - name: Verify react-native-tor is linked
         run: |
+          # Check for the actual library binary or the pod structure
           if [ -d "ios/Pods/react-native-tor" ] || [ -f "ios/Pods/Local Podspecs/react-native-tor.podspec.json" ]; then
-            echo "✅ react-native-tor native module found"
+            echo "✅ react-native-tor found"
           else
             echo "❌ react-native-tor NOT found in Pods."
-            echo "Searching for podspec in node_modules..."
-            find node_modules/react-native-tor -name "*.podspec"
+            echo "Checking Podfile.lock for traces..."
+            grep "react-native-tor" ios/Podfile.lock || echo "Not in lockfile either"
             exit 1
+          fi
           fi
 
       - name: Build Unsigned App
