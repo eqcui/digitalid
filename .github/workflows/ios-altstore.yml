@@ -37,7 +37,7 @@ jobs:
 
       - name: Disable New Architecture (required for react-native-tor)
         run: |
-          # Force newArchEnabled to false in the Expo properties file
+          # 1. Force newArchEnabled to false in properties
           if [ -f ios/Podfile.properties.json ]; then
             node -e "
               const fs = require('fs');
@@ -45,37 +45,37 @@ jobs:
               const json = JSON.parse(fs.readFileSync(p, 'utf8'));
               json['newArchEnabled'] = 'false';
               fs.writeFileSync(p, JSON.stringify(json, null, 2));
-              console.log('Forced newArchEnabled to false:', json);
+              console.log('Forced newArchEnabled to false');
             "
           fi
 
       - name: Force link react-native-tor
         run: |
-          # If react-native-tor is missing from Podfile, inject it
-          if ! grep -q "react-native-tor" ios/Podfile; then
-            echo "Adding react-native-tor to Podfile manually..."
-            sed -i '' "/use_native_modules!/a\\
+          # 2. More robust injection: find the 'target' line and insert after it
+          # This ensures that even if use_native_modules! isn't found, it goes into the main build target
+          APP_NAME=$(ls ios | grep .xcodeproj | sed 's/.xcodeproj//')
+          sed -i '' "/target '$APP_NAME' do/a\\
             pod 'react-native-tor', :path => '../node_modules/react-native-tor'
-            " ios/Podfile
-          fi
+          " ios/Podfile
+          
+          echo "--- Resulting Podfile for Debugging ---"
+          cat ios/Podfile
 
       - name: Install CocoaPods
         run: |
           cd ios && pod install
         env:
-          # This tells Reanimated 3.x to allow the legacy bridge
           RCT_NEW_ARCH_ENABLED: 0
           CP_HOMEBREW_CLEAN_INSTALL_AFTER_UPDATE: 1
 
-
-
       - name: Verify react-native-tor is linked
         run: |
-          if [ -d "ios/Pods/react-native-tor" ]; then
-            echo "✅ react-native-tor pod directory found"
+          # Search for the directory case-insensitively or by common patterns
+          if [ -d "ios/Pods/react-native-tor" ] || [ -d "ios/Pods/RNTor" ]; then
+            echo "✅ react-native-tor (or RNTor) pod directory found"
           else
             echo "❌ react-native-tor pod NOT found in ios/Pods"
-            # Optional: List pods to help debug if it fails
+            echo "Listing contents of ios/Pods to debug:"
             ls ios/Pods
             exit 1
           fi
