@@ -125,6 +125,8 @@ jobs:
                      CODE_SIGN_IDENTITY="" \
                      PROVISIONING_PROFILE_SPECIFIER="" \
                      GENERATE_INFOPLIST_FILE=YES \
+                     MARKETING_VERSION="${APP_VERSION}" \
+                     CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
                      RCT_NEW_ARCH_ENABLED=0 \
                      RCT_BRIDGELESS_ENABLED=0
 
