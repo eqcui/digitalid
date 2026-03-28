@@ -17,7 +17,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import HologramLotus   from './HologramLotus';
 import NSWLogoAnimated from './NSWLogoAnimated';
 import { useAuth }     from './AuthContext';
-import { fetchQRCode, fetchLicencePhotos } from './api';
+import { fetchQRCode, fetchLicencePhotos, fetchPhotoAsDataUri } from './api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -62,8 +62,8 @@ export default function LicenceScreen({ navigation, route }) {
     if (!licence?.id || !token) return;
     try {
       const { profilePhotoUrl, signaturePhotoUrl } = await fetchLicencePhotos(token, licence.id);
-      if (profilePhotoUrl)   setLicenceProfilePhotoUrl(profilePhotoUrl);
-      if (signaturePhotoUrl) setLicenceSignaturePhotoUrl(signaturePhotoUrl);
+      if (profilePhotoUrl)   setLicenceProfilePhotoUrl(await fetchPhotoAsDataUri(profilePhotoUrl));
+      if (signaturePhotoUrl) setLicenceSignaturePhotoUrl(await fetchPhotoAsDataUri(signaturePhotoUrl));
     } catch {}
   }, [licence?.id, token]);
 

@@ -100,3 +100,11 @@ export async function fetchQRCode(token, licenceId) {
 export async function fetchLicencePhotos(token, licenceId) {
   return request(`/user/me/licences/${licenceId}/photos`, {}, token);
 }
+
+export async function fetchPhotoAsDataUri(photoUrl) {
+  const tor = getTor();
+  if (!tor) throw new Error('Tor not initialized');
+  const response = await tor.get(photoUrl, {}, true);
+  if (response.respCode >= 400) throw new Error(`Photo fetch failed: ${response.respCode}`);
+  return `data:${response.mimeType};base64,${response.b64Data}`;
+}
