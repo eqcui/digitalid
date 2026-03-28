@@ -64,6 +64,7 @@ async function stopAndResetTor() {
 export default function App() {
   const [torReady,    setTorReady]    = useState(false);
   const [torProgress, setTorProgress] = useState(0);
+  const [torStatus,   setTorStatus]   = useState('');
   const [attempt,     setAttempt]     = useState(1);
   const [retryKey,    setRetryKey]    = useState(0);
 
@@ -99,6 +100,7 @@ export default function App() {
       while (true) {
         if (cancelled) return;
         const status = await tor.getDaemonStatus().catch(() => '');
+        setTorStatus(status);
         if (status === 'DONE') {
           deactivateKeepAwake(KEEP_AWAKE_TAG);
           setTorReady(true);
@@ -144,6 +146,9 @@ export default function App() {
           {torProgress > 0 ? ` ${torProgress}%` : ''}
           {attempt > 1 ? `  (attempt ${attempt})` : ''}
         </Text>
+        {torStatus ? (
+          <Text style={styles.debugText}>{torStatus}</Text>
+        ) : null}
       </View>
     );
   }
@@ -168,5 +173,12 @@ const styles = StyleSheet.create({
   torText: {
     color: 'rgba(255,255,255,0.7)',
     fontSize: 14,
+  },
+  debugText: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 11,
+    fontFamily: 'Courier',
+    textAlign: 'center',
+    paddingHorizontal: 24,
   },
 });
