@@ -169,10 +169,15 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Discard the app.json version patch (build-only change, not committed)
-          # so git pull --rebase has a clean working tree
-          git restore app.json
-          git pull --rebase origin main
+          # Save the updated JSON before wiping the working tree
+          cp altstore-source.json /tmp/altstore-source.json
+          # Hard-reset to clear all dirty files (app.json patch, generated ios/, etc.)
+          git reset --hard HEAD
+          git clean -fd
+          # Pull latest commits from remote
+          git pull origin main
+          # Restore our updated JSON and commit
+          cp /tmp/altstore-source.json altstore-source.json
           git add altstore-source.json
           git commit -m "Update SideStore source to v${APP_VERSION} [skip ci]"
           git push origin main
