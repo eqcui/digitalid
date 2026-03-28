@@ -61,10 +61,12 @@ jobs:
 
       - name: Verify react-native-tor is linked
         run: |
-          if grep -r "RNTor" ios/Pods --include="*.h" -l; then
-            echo "✅ react-native-tor native module found in Pods"
+          if [ -d "ios/Pods/react-native-tor" ]; then
+            echo "✅ react-native-tor pod directory found"
           else
-            echo "❌ react-native-tor native module NOT found — build may fail"
+            echo "❌ react-native-tor pod NOT found in ios/Pods"
+            # Optional: List pods to help debug if it fails
+            ls ios/Pods
             exit 1
           fi
 
