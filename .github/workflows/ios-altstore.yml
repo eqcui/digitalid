@@ -49,6 +49,16 @@ jobs:
             "
           fi
 
+      - name: Force link react-native-tor
+        run: |
+          # If react-native-tor is missing from Podfile, inject it
+          if ! grep -q "react-native-tor" ios/Podfile; then
+            echo "Adding react-native-tor to Podfile manually..."
+            sed -i '' "/use_native_modules!/a\\
+            pod 'react-native-tor', :path => '../node_modules/react-native-tor'
+            " ios/Podfile
+          fi
+
       - name: Install CocoaPods
         run: |
           cd ios && pod install
