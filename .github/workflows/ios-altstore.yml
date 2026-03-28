@@ -35,48 +35,35 @@ jobs:
           echo "export NODE_BINARY=$(which node)" > .xcode.env
           cp .xcode.env ios/.xcode.env
 
-      - name: Disable New Architecture (required for react-native-tor)
+      - name: Patch Podfile for Tor and Disable New Arch
         run: |
-          # 1. Force newArchEnabled to false in properties
-          if [ -f ios/Podfile.properties.json ]; then
-            node -e "
-              const fs = require('fs');
-              const p = 'ios/Podfile.properties.json';
-              const json = JSON.parse(fs.readFileSync(p, 'utf8'));
-              json['newArchEnabled'] = 'false';
-              fs.writeFileSync(p, JSON.stringify(json, null, 2));
-              console.log('Forced newArchEnabled to false');
-            "
-          fi
+          node -e "
+          const fs = require('fs');
+          const path = 'ios/Podfile';
+          let content = fs.readFileSync(path, 'utf8');
 
-      - name: Force link react-native-tor
-        run: |
-          # 2. More robust injection: find the 'target' line and insert after it
-          # This ensures that even if use_native_modules! isn't found, it goes into the main build target
-          APP_NAME=$(ls ios | grep .xcodeproj | sed 's/.xcodeproj//')
-          sed -i '' "/target '$APP_NAME' do/a\\
-            pod 'react-native-tor', :path => '../node_modules/react-native-tor'
-          " ios/Podfile
+          // 1. Force New Architecture OFF in the Podfile header
+          content = content.replace(/:new_arch_enabled => .*,/g, ':new_arch_enabled => false,');
           
-          echo "--- Resulting Podfile for Debugging ---"
-          cat ios/Podfile
+          // 2. Explicitly add react-native-tor to the main target
+          // We look for the first 'target' block
+          const torPod = \"\n  pod 'react-native-tor', :path => '../node_modules/react-native-tor'\n\";
+          if (!content.includes('react-native-tor')) {
+            content = content.replace(/target '.*' do/, (match) => match + torPod);
+          }
 
-      - name: Install CocoaPods
-        run: |
-          cd ios && pod install
-        env:
-          RCT_NEW_ARCH_ENABLED: 0
-          CP_HOMEBREW_CLEAN_INSTALL_AFTER_UPDATE: 1
-
+          fs.writeFileSync(path, content);
+          console.log('Successfully patched Podfile:');
+          console.log(content);
+          "
       - name: Verify react-native-tor is linked
         run: |
-          # Search for the directory case-insensitively or by common patterns
-          if [ -d "ios/Pods/react-native-tor" ] || [ -d "ios/Pods/RNTor" ]; then
-            echo "✅ react-native-tor (or RNTor) pod directory found"
+          if [ -d "ios/Pods/react-native-tor" ] || [ -f "ios/Pods/Local Podspecs/react-native-tor.podspec.json" ]; then
+            echo "✅ react-native-tor native module found"
           else
-            echo "❌ react-native-tor pod NOT found in ios/Pods"
-            echo "Listing contents of ios/Pods to debug:"
-            ls ios/Pods
+            echo "❌ react-native-tor NOT found in Pods."
+            echo "Searching for podspec in node_modules..."
+            find node_modules/react-native-tor -name "*.podspec"
             exit 1
           fi
 
