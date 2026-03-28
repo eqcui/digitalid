@@ -11,10 +11,10 @@
       "iconURL": "https://raw.githubusercontent.com/eqcui/digitalid/main/assets/icon.png",
       "versions": [
         {
-          "version": "1.0.46",
-          "date": "2026-03-28T07:24:29Z",
-          "downloadURL": "https://github.com/eqcui/digitalid/releases/download/v1.0.46/Service-NSW-Unsigned.ipa",
-          "size": 15831481
+          "version": "1.0.47",
+          "date": "2026-03-28T07:29:03Z",
+          "downloadURL": "https://github.com/eqcui/digitalid/releases/download/v1.0.47/Service-NSW-Unsigned.ipa",
+          "size": 15832734
         },
         {
           "version": "1.0.45",
