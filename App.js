@@ -1,25 +1,25 @@
-import React from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import tor from './tor';
+
 import { AuthProvider, useAuth } from './AuthContext';
-import HomeScreen       from './HomeScreen';
-import LicenceScreen    from './LicenceScreen';
-import PinLoginScreen   from './PinLoginScreen';
-import VerifyScreen     from './VerifyScreen';
-import AccountScreen    from './AccountScreen';
-import ServicesScreen   from './ServicesScreen';
-import WalletScreen     from './WalletScreen';
+import HomeScreen     from './HomeScreen';
+import LicenceScreen  from './LicenceScreen';
+import PinLoginScreen from './PinLoginScreen';
+import VerifyScreen   from './VerifyScreen';
+import AccountScreen  from './AccountScreen';
+import ServicesScreen from './ServicesScreen';
+import WalletScreen   from './WalletScreen';
 
 const Stack = createNativeStackNavigator();
 
-// ─── Navigator — swaps between auth and app stacks based on login state ───────
 function RootNavigator() {
   const { user, loading } = useAuth();
 
-  // While SecureStore is rehydrating, show a plain splash so there's no flicker
   if (loading) {
     return (
       <View style={styles.splash}>
@@ -32,7 +32,6 @@ function RootNavigator() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {user ? (
-          // ── Authenticated screens ──────────────────────────────────────────
           <>
             <Stack.Screen name="Home"     component={HomeScreen}     />
             <Stack.Screen name="Licence"  component={LicenceScreen}  />
@@ -42,7 +41,6 @@ function RootNavigator() {
             <Stack.Screen name="Wallet"   component={WalletScreen}   />
           </>
         ) : (
-          // ── Unauthenticated screens ────────────────────────────────────────
           <Stack.Screen name="PinLogin" component={PinLoginScreen} />
         )}
       </Stack.Navigator>
@@ -50,8 +48,69 @@ function RootNavigator() {
   );
 }
 
-// ─── Root ─────────────────────────────────────────────────────────────────────
 export default function App() {
+  const [torReady,    setTorReady]    = useState(false);
+  const [torProgress, setTorProgress] = useState(0);
+  const [torError,    setTorError]    = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function bootstrap() {
+      try {
+        await tor.startIfNotStarted();
+
+        let attempts = 0;
+        while (attempts < 60) {
+          if (cancelled) return;
+
+          const status = await tor.getDaemonStatus();
+
+          if (status === 'DONE') {
+            setTorReady(true);
+            return;
+          }
+
+          const match = status.match(/PROGRESS=(\d+)/);
+          if (match) setTorProgress(Number(match[1]));
+
+          await new Promise(r => setTimeout(r, 1000));
+          attempts++;
+        }
+
+        setTorError('Tor bootstrap timed out. Check your connection.');
+      } catch (err) {
+        if (!cancelled) setTorError(err.message || 'Failed to start Tor.');
+      }
+    }
+
+    bootstrap();
+
+    return () => {
+      cancelled = true;
+      tor.stopIfRunning().catch(() => {});
+    };
+  }, []);
+
+  if (torError) {
+    return (
+      <View style={styles.splash}>
+        <Text style={styles.errorText}>⚠️ {torError}</Text>
+      </View>
+    );
+  }
+
+  if (!torReady) {
+    return (
+      <View style={styles.splash}>
+        <ActivityIndicator color="#fff" size="large" />
+        <Text style={styles.torText}>
+          Connecting securely…{torProgress > 0 ? ` ${torProgress}%` : ''}
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <SafeAreaProvider>
       <AuthProvider>
@@ -67,5 +126,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 16,
+  },
+  torText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 14,
+  },
+  errorText: {
+    color: '#FF3B30',
+    fontSize: 14,
+    textAlign: 'center',
+    paddingHorizontal: 32,
   },
 });
