@@ -25,7 +25,7 @@ import { useAuth } from './AuthContext';
 import { updateMe } from './api';
 
 export default function AccountScreen({ navigation }) {
-  const { user, token, licences, signOut, refreshUser, updateUserLocally } = useAuth();
+  const { user, token, licences, photoCache, signOut, refreshUser, updateUserLocally } = useAuth();
 
   // ── Editable fields ────────────────────────────────────────────────────────
   const [editing,  setEditing]  = useState(false);
@@ -78,9 +78,11 @@ export default function AccountScreen({ navigation }) {
     );
   };
 
-  // ── Profile photo source ───────────────────────────────────────────────────
-  const profilePhotoSource = user?.profilePhotoUrl
-    ? { uri: user.profilePhotoUrl }
+  // ── Profile photo — use cached base64 data URI from first licence ─────────
+  const firstLicenceId = licences[0]?.id;
+  const cachedPhoto = firstLicenceId ? photoCache[firstLicenceId]?.profilePhotoUrl : null;
+  const profilePhotoSource = cachedPhoto
+    ? { uri: cachedPhoto }
     : require('./assets/photo.png');
 
   return (
