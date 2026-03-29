@@ -356,18 +356,33 @@ export default function LicenceScreen({ navigation, route }) {
               </>
             )}
 
-            {infoModal === 'conditions' && (
-              <>
-                <Text style={styles.infoBoxLabel}>CONDITIONS</Text>
-                <Text style={styles.infoBoxValue}>{licence?.conditions ?? 'None'}</Text>
-                <Text style={styles.infoBoxDesc}>
-                  {licence?.conditions?.includes('A') ? 'A = Must wear corrective lenses\n' : ''}
-                  {licence?.conditions?.includes('Y') ? 'Y = Blood alcohol limit 0.00\n' : ''}
-                  {licence?.conditions?.includes('B') ? 'B = Automatic vehicles only\n' : ''}
-                  {!licence?.conditions ? 'No conditions apply to this licence.' : ''}
-                </Text>
-              </>
-            )}
+            {infoModal === 'conditions' && (() => {
+              const CONDITION_DESCRIPTIONS = {
+                A: 'Automatic Transmission — Must only drive vehicles fitted with an automatic transmission.',
+                B: 'Synchromesh Gearbox — Restricted to vehicles with a synchromesh or automatic transmission (no crash boxes).',
+                E: 'LAMS Motorcycle — Restricted to motorcycles approved under the Learner Approved Motorcycle Scheme.',
+                I: 'Alcohol Interlock — Must only drive a vehicle fitted with an approved alcohol interlock device.',
+                S: 'Corrective Lenses — Must wear glasses or contact lenses at all times while driving.',
+                V: 'Driver Aids/Modifications — Must only drive vehicles fitted with specific driver aids or modifications.',
+                X: 'Special Conditions — Must comply with specific conditions notified in writing or printed on the licence.',
+                Z: 'Alcohol Limit (0.02) — Must not drive with a breath or blood alcohol concentration of 0.02 or more.',
+              };
+              const codes = (licence?.conditions ?? '').toUpperCase().split(/[,\s]+/).filter(c => c.length === 1);
+              return (
+                <>
+                  <Text style={styles.infoBoxLabel}>CONDITIONS</Text>
+                  <Text style={styles.infoBoxValue}>{licence?.conditions ?? 'None'}</Text>
+                  {codes.length === 0
+                    ? <Text style={styles.infoBoxDesc}>No conditions apply to this licence.</Text>
+                    : codes.map(code => (
+                        <Text key={code} style={styles.infoBoxDesc}>
+                          {CONDITION_DESCRIPTIONS[code] ?? `${code} — See licence documentation for details.`}
+                        </Text>
+                      ))
+                  }
+                </>
+              );
+            })()}
 
             <TouchableOpacity style={styles.infoBoxClose} onPress={() => setInfoModal(null)}>
               <Text style={styles.infoBoxCloseText}>Close</Text>
@@ -417,14 +432,14 @@ const styles = StyleSheet.create({
   qrContainer:       { width: SCREEN_WIDTH * 0.42, height: SCREEN_WIDTH * 0.42, backgroundColor: '#FFFFFF', borderRadius: 0, overflow: 'hidden', justifyContent: 'center', alignItems: 'center', padding: 8, marginTop: -10, marginBottom: -10 },
   qrCode:            { width: SCREEN_WIDTH * 0.44, height: SCREEN_WIDTH * 0.46, borderRadius: 0, resizeMode: 'contain' },
 
-  classConditionsContainer: { flexDirection: 'row', borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: '#1e1e1e', width: '100%' },
-  ccBlockLeft:  { flex: 1, paddingVertical: 14, paddingLeft: 18, paddingRight: 14, borderRightWidth: 1, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: '#1e1e1e' },
-  ccBlockRight: { flex: 1, paddingVertical: 14, paddingLeft: 14, paddingRight: 18, backgroundColor: '#1e1e1e' },
+  classConditionsContainer: { flexDirection: 'row', gap: 8, backgroundColor: '#121212', width: '100%', paddingHorizontal: 8, paddingVertical: 8 },
+  ccBlockLeft:  { flex: 1, paddingVertical: 14, paddingLeft: 14, paddingRight: 14, backgroundColor: '#1e1e1e', borderRadius: 8 },
+  ccBlockRight: { flex: 1, paddingVertical: 14, paddingLeft: 14, paddingRight: 14, backgroundColor: '#1e1e1e', borderRadius: 8 },
   ccHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   ccLabel:      { fontSize: 9, fontWeight: '700', color: '#FFFFFF', letterSpacing: 1 },
   ccValue:      { fontSize: 18, fontWeight: '700', color: '#8499cf' },
-  infoIcon:     { width: 16, height: 16, borderRadius: 8, backgroundColor: '#1E5C8A', justifyContent: 'center', alignItems: 'center' },
-  infoIconText: { fontSize: 10, fontWeight: 'bold', color: '#FFFFFF' },
+  infoIcon:     { width: 20, height: 20, borderRadius: 10, backgroundColor: '#8499cf', justifyContent: 'center', alignItems: 'center' },
+  infoIconText: { fontSize: 12, fontWeight: 'bold', color: '#FFFFFF' },
 
   bottomSection:      { backgroundColor: '#121212', paddingBottom: 0, position: 'relative' },
   bannerWrapper:      { position: 'relative', width: '100%' },
@@ -439,13 +454,13 @@ const styles = StyleSheet.create({
   signatureWhiteBox:  { backgroundColor: '#FFFFFF', padding: 6, borderRadius: 0, width: 120, height: 60, alignItems: 'center', justifyContent: 'center' },
   signaturePhoto:     { width: 108, height: 48, resizeMode: 'contain' },
   infoOverlay:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 28 },
-  infoBox:          { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 24, width: '100%', maxWidth: 360 },
-  infoBoxTitle:     { fontSize: 17, fontWeight: '700', color: '#000000', marginBottom: 18 },
-  infoBoxLabel:     { fontSize: 10, fontWeight: '700', color: '#666666', letterSpacing: 1, textTransform: 'uppercase', marginTop: 12, marginBottom: 2 },
-  infoBoxValue:     { fontSize: 20, fontWeight: '700', color: '#000000', marginBottom: 4 },
-  infoBoxDesc:      { fontSize: 13, color: '#444444', lineHeight: 20, marginTop: 4 },
-  infoBoxClose:     { marginTop: 24, backgroundColor: '#F2F2F7', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
-  infoBoxCloseText: { fontSize: 16, fontWeight: '500', color: '#000000' },
+  infoBox:          { backgroundColor: '#1e1e1e', borderRadius: 14, padding: 24, width: '100%', maxWidth: 360, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  infoBoxTitle:     { fontSize: 17, fontWeight: '700', color: '#FFFFFF', marginBottom: 18 },
+  infoBoxLabel:     { fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.45)', letterSpacing: 1, textTransform: 'uppercase', marginTop: 12, marginBottom: 2 },
+  infoBoxValue:     { fontSize: 20, fontWeight: '700', color: '#8499cf', marginBottom: 4 },
+  infoBoxDesc:      { fontSize: 13, color: 'rgba(255,255,255,0.65)', lineHeight: 20, marginTop: 8 },
+  infoBoxClose:     { marginTop: 24, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' },
+  infoBoxCloseText: { fontSize: 16, fontWeight: '500', color: '#FFFFFF' },
   bottomCardInfo:     { position: 'absolute', left: 40, bottom: 12, zIndex: 2 },
   bottomCardNumber:   { fontSize: 13, fontWeight: '700', color: '#ffffff' },
   bottomCardLabel:    { fontSize: 8, fontWeight: '700', color: '#ffffff', marginTop: 1, letterSpacing: 0.5 },
