@@ -57,11 +57,12 @@ export function AuthProvider({ children }) {
 
     await SecureStore.setItemAsync(TOKEN_KEY, newToken);
     setToken(newToken);
-    setUser(newUser);
     setLicences(licenceList ?? []);
 
-    // Prefetch photos in background — don't block sign-in
-    prefetchPhotos(licenceList ?? [], newToken);
+    // Fetch photos before revealing the app so licence screen is instant
+    await prefetchPhotos(licenceList ?? [], newToken);
+
+    setUser(newUser);
   }, [prefetchPhotos]);
 
   const signOut = useCallback(async () => {

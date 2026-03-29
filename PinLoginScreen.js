@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,6 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   Modal,
   Alert,
 } from 'react-native';
@@ -38,9 +37,30 @@ export default function PinLoginScreen() {
   // Track which digit index is currently "revealing" its value
   const [revealIndex,  setRevealIndex]  = useState(-1);
 
-  const shakeAnim  = useRef(new Animated.Value(0)).current;
-  const inputRef   = useRef(null);
+  const shakeAnim   = useRef(new Animated.Value(0)).current;
+  const inputRef    = useRef(null);
   const revealTimer = useRef(null);
+
+  // Animated dots for "Logging in" screen
+  const dot1 = useRef(new Animated.Value(0.3)).current;
+  const dot2 = useRef(new Animated.Value(0.3)).current;
+  const dot3 = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    if (!loading) return;
+    const pulse = (dot, delay) => Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(dot, { toValue: 1,   duration: 300, useNativeDriver: true }),
+        Animated.timing(dot, { toValue: 0.3, duration: 300, useNativeDriver: true }),
+        Animated.delay(600),
+      ])
+    ).start();
+    pulse(dot1, 0);
+    pulse(dot2, 200);
+    pulse(dot3, 400);
+    return () => { dot1.stopAnimation(); dot2.stopAnimation(); dot3.stopAnimation(); };
+  }, [loading]);
 
   // Load saved user ID on mount
   useEffect(() => {
@@ -214,7 +234,14 @@ export default function PinLoginScreen() {
           <Text style={styles.pinTitle}>Log in with PIN</Text>
 
           {loading ? (
-            <ActivityIndicator size="large" color="#FFFFFF" style={styles.spinner} />
+            <View style={styles.loggingInContainer}>
+              <Text style={styles.loggingInText}>Logging in</Text>
+              <View style={styles.dotsRowSmall}>
+                {[dot1, dot2, dot3].map((dot, i) => (
+                  <Animated.View key={i} style={[styles.loadingDot, { opacity: dot }]} />
+                ))}
+              </View>
+            </View>
           ) : (
             <Animated.View
               style={[styles.dotsRow, { transform: [{ translateX: shakeAnim }] }]}
@@ -342,9 +369,27 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 22,
   },
-  spinner: {
-    marginBottom: 16,
+  loggingInContainer: {
     height: DOT_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  loggingInText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  dotsRowSmall: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  loadingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#5DADE2',
   },
   dotsRow: {
     flexDirection: 'row',
