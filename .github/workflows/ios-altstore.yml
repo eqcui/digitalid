@@ -76,12 +76,6 @@ jobs:
             content = content.slice(0, lastEndIndex) + torLine + content.slice(lastEndIndex);
           }
 
-          // 3. Exclude expo-dev-client and expo-dev-menu from production builds
-          // They require Debug configuration and old bridge headers unavailable in Release
-          content = content.replace(
-            /^(\\s*pod ['\"](EXDevMenu|expo-dev-menu|EXDevClient|expo-dev-client)['\"].*)$/gm,
-            '# $1 # excluded from production build'
-          );
 
           fs.writeFileSync(path, content);
           console.log('--- PATCHED PODFILE ---');
