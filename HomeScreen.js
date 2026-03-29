@@ -16,13 +16,13 @@ import { useAuth } from './AuthContext';
 
 // ─── Home tab: service quick-links ───────────────────────────────────────────
 const SERVICE_LINKS = [
-  { label: 'Registrations',             icon: <MaterialCommunityIcons name="card-account-details-outline" size={30} color="#B0CBDF" />, url: 'https://www.service.nsw.gov.au/transaction/registration' },
-  { label: 'Fines and demerits',        icon: <MaterialCommunityIcons name="file-document-outline"        size={30} color="#B0CBDF" />, url: 'https://www.service.nsw.gov.au/transaction/pay-a-fine' },
-  { label: 'Vouchers',                  icon: <MaterialCommunityIcons name="ticket-confirmation-outline"  size={30} color="#B0CBDF" />, url: 'https://www.service.nsw.gov.au/campaign/service-nsw-vouchers', badge: 'New' },
-  { label: 'Disaster support & grants', icon: <MaterialCommunityIcons name="hand-heart-outline"           size={30} color="#B0CBDF" />, url: 'https://www.service.nsw.gov.au/campaign/disaster-assistance' },
-  { label: 'Locations',                 icon: <Ionicons               name="location-outline"             size={30} color="#B0CBDF" />, url: 'https://www.service.nsw.gov.au/find-a-service-centre' },
-  { label: 'QR code check-in',          icon: <MaterialCommunityIcons name="qrcode-scan"                 size={30} color="#B0CBDF" />, url: 'https://www.service.nsw.gov.au/transaction/check-in-using-qr-code' },
-  { label: 'Check a licence or credential', icon: <MaterialCommunityIcons name="card-search-outline"     size={30} color="#B0CBDF" />, url: 'https://www.service.nsw.gov.au/transaction/check-a-licence-or-credential', isVerify: true },
+  { label: 'Registrations',             icon: <MaterialCommunityIcons name="card-account-details-outline" size={30} color="#F28B9D" />, url: 'https://www.service.nsw.gov.au/transaction/registration' },
+  { label: 'Fines and demerits',        icon: <MaterialCommunityIcons name="file-document-outline"        size={30} color="#F28B9D" />, url: 'https://www.service.nsw.gov.au/transaction/pay-a-fine' },
+  { label: 'Vouchers',                  icon: <MaterialCommunityIcons name="ticket-confirmation-outline"  size={30} color="#F28B9D" />, url: 'https://www.service.nsw.gov.au/campaign/service-nsw-vouchers', badge: 'New' },
+  { label: 'Disaster support & grants', icon: <MaterialCommunityIcons name="hand-heart-outline"           size={30} color="#F28B9D" />, url: 'https://www.service.nsw.gov.au/campaign/disaster-assistance' },
+  { label: 'Locations',                 icon: <Ionicons               name="location-outline"             size={30} color="#F28B9D" />, url: 'https://www.service.nsw.gov.au/find-a-service-centre' },
+  { label: 'QR code check-in',          icon: <MaterialCommunityIcons name="qrcode-scan"                 size={30} color="#F28B9D" />, url: 'https://www.service.nsw.gov.au/transaction/check-in-using-qr-code' },
+  { label: 'Check a licence or credential', icon: <MaterialCommunityIcons name="card-search-outline"     size={30} color="#F28B9D" />, url: 'https://www.service.nsw.gov.au/transaction/check-a-licence-or-credential', isVerify: true },
 ];
 
 // ─── Services tab: card data ──────────────────────────────────────────────────
