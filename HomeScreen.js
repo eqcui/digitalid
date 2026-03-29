@@ -16,13 +16,13 @@ import { useAuth } from './AuthContext';
 
 // ─── Home tab: service quick-links ───────────────────────────────────────────
 const SERVICE_LINKS = [
-  { label: 'Registrations',             icon: <MaterialCommunityIcons name="card-account-details-outline" size={30} color="#F28B9D" />, url: 'https://www.service.nsw.gov.au/transaction/registration' },
-  { label: 'Fines and demerits',        icon: <MaterialCommunityIcons name="file-document-outline"        size={30} color="#F28B9D" />, url: 'https://www.service.nsw.gov.au/transaction/pay-a-fine' },
-  { label: 'Vouchers',                  icon: <MaterialCommunityIcons name="ticket-confirmation-outline"  size={30} color="#F28B9D" />, url: 'https://www.service.nsw.gov.au/campaign/service-nsw-vouchers', badge: 'New' },
-  { label: 'Disaster support & grants', icon: <MaterialCommunityIcons name="hand-heart-outline"           size={30} color="#F28B9D" />, url: 'https://www.service.nsw.gov.au/campaign/disaster-assistance' },
-  { label: 'Locations',                 icon: <Ionicons               name="location-outline"             size={30} color="#F28B9D" />, url: 'https://www.service.nsw.gov.au/find-a-service-centre' },
-  { label: 'QR code check-in',          icon: <MaterialCommunityIcons name="qrcode-scan"                 size={30} color="#F28B9D" />, url: 'https://www.service.nsw.gov.au/transaction/check-in-using-qr-code' },
-  { label: 'Check a licence or credential', icon: <MaterialCommunityIcons name="card-search-outline"     size={30} color="#F28B9D" />, url: 'https://www.service.nsw.gov.au/transaction/check-a-licence-or-credential', isVerify: true },
+  { label: 'Registrations',             icon: require('./assets/icon-registrations.png'), url: 'https://www.service.nsw.gov.au/transaction/registration' },
+  { label: 'Fines and demerits',        icon: require('./assets/icon-fines.png'),         url: 'https://www.service.nsw.gov.au/transaction/pay-a-fine' },
+  { label: 'Vouchers',                  icon: require('./assets/icon-vouchers.png'),       url: 'https://www.service.nsw.gov.au/campaign/service-nsw-vouchers', badge: 'New' },
+  { label: 'Disaster support & grants', icon: require('./assets/icon-disaster.png'),       url: 'https://www.service.nsw.gov.au/campaign/disaster-assistance' },
+  { label: 'Locations',                 icon: require('./assets/icon-locations.png'),      url: 'https://www.service.nsw.gov.au/find-a-service-centre' },
+  { label: 'QR code check-in',          icon: require('./assets/icon-qr.png'),             url: 'https://www.service.nsw.gov.au/transaction/check-in-using-qr-code' },
+  { label: 'Check a licence or credential', icon: require('./assets/icon-verify.png'),     url: 'https://www.service.nsw.gov.au/transaction/check-a-licence-or-credential', isVerify: true },
 ];
 
 // ─── Services tab: card data ──────────────────────────────────────────────────
@@ -193,7 +193,9 @@ export default function HomeScreen({ navigation }) {
         {SERVICE_LINKS.map((service) => (
           <TouchableOpacity key={service.label} style={styles.serviceRow}
             onPress={() => service.isVerify ? navigation.navigate('Verify') : Linking.openURL(service.url)}>
-            <View style={styles.serviceIconContainer}>{service.icon}</View>
+            <View style={styles.serviceIconContainer}>
+              <Image source={service.icon} style={styles.serviceIconImg} />
+            </View>
             <Text style={styles.serviceText}>{service.label}</Text>
             {service.badge && <View style={styles.newBadge}><Text style={styles.newBadgeText}>{service.badge}</Text></View>}
           </TouchableOpacity>
@@ -418,7 +420,8 @@ const styles = StyleSheet.create({
   cardTextContainer: { padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', height: 70 },
   cardText: { color: 'white', fontSize: 14, fontWeight: '600', flex: 1, paddingRight: 5 },
   serviceRow: { flexDirection: 'row', backgroundColor: '#2C3135', borderRadius: 4, padding: 15, marginHorizontal: 20, marginBottom: 12, alignItems: 'center' },
-  serviceIconContainer: { marginRight: 15 },
+  serviceIconContainer: { marginRight: 15, width: 44, alignItems: 'center' },
+  serviceIconImg:       { width: 44, height: 44, resizeMode: 'contain' },
   serviceText: { color: 'white', fontSize: 16, fontWeight: 'bold', flex: 1 },
   newBadge: { borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.5)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4 },
   newBadgeText: { color: 'white', fontSize: 13, fontWeight: '600' },

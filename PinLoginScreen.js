@@ -387,6 +387,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 16,
+    marginBottom: 70, // offset for header so content appears visually centred on screen
   },
   loggingInText: {
     color: '#FFFFFF',
