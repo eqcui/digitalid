@@ -1,0 +1,123 @@
+name: Build Service-NSW (Dev Client)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-ios:
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Patch bundle ID and name for dev client
+        run: |
+          node -e "
+          const fs = require('fs');
+          const cfg = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+          cfg.expo.name = 'Service NSW Dev';
+          cfg.expo.ios.bundleIdentifier = 'com.eqcui.ServiceNSW.dev';
+          fs.writeFileSync('app.json', JSON.stringify(cfg, null, 2));
+          console.log('Patched for dev client');
+          "
+
+      - name: Generate iOS Directory (Expo Prebuild)
+        run: npx expo prebuild --platform ios --no-install --clean
+
+      - name: Set Xcode Version
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.2.app
+          xcodebuild -version
+
+      - name: Fix Node Path and EXConstants
+        run: |
+          ln -s $(which node) /usr/local/bin/node || true
+          echo "export NODE_BINARY=$(which node)" > .xcode.env
+          cp .xcode.env ios/.xcode.env
+
+      - name: Patch Podfile and Disable New Arch
+        run: |
+          node -e "
+          const fs = require('fs');
+          const path = 'ios/Podfile';
+          let content = fs.readFileSync(path, 'utf8');
+          content = 'ENV[\"RCT_NEW_ARCH_ENABLED\"] = \"0\"\n' + content;
+          const torLine = \"\n  pod 'react-native-tor', :path => '../node_modules/react-native-tor'\n\";
+          const lastEndIndex = content.lastIndexOf('end');
+          if (lastEndIndex !== -1 && !content.includes('react-native-tor')) {
+            content = content.slice(0, lastEndIndex) + torLine + content.slice(lastEndIndex);
+          }
+          fs.writeFileSync(path, content);
+          "
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: ios/Pods
+          key: pods-dev-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: pods-dev-
+
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          pod install
+        env:
+          RCT_NEW_ARCH_ENABLED: 0
+
+      - name: Verify react-native-tor is linked
+        run: |
+          if grep -q "react-native-tor" ios/Podfile.lock; then
+            echo "✅ react-native-tor successfully found in Podfile.lock"
+          else
+            echo "❌ react-native-tor NOT found in lockfile."
+            exit 1
+          fi
+
+      - name: Build Unsigned Dev Client
+        run: |
+          SCHEME_NAME=$(ls ios | grep .xcworkspace | cut -f 1 -d '.')
+          echo "Building scheme: $SCHEME_NAME"
+          xcodebuild -workspace ios/*.xcworkspace \
+                     -scheme "$SCHEME_NAME" \
+                     -configuration Debug \
+                     -sdk iphoneos \
+                     -derivedDataPath build \
+                     CODE_SIGNING_ALLOWED=NO \
+                     CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGN_ENTITLEMENTS="" \
+                     CODE_SIGN_IDENTITY="" \
+                     PROVISIONING_PROFILE_SPECIFIER="" \
+                     GENERATE_INFOPLIST_FILE=YES \
+                     RCT_NEW_ARCH_ENABLED=0 \
+                     RCT_BRIDGELESS_ENABLED=0 \
+                     COMPILER_INDEX_STORE_ENABLE=NO
+
+      - name: Create IPA
+        run: |
+          mkdir -p Payload
+          APP_PATH=$(find build/Build/Products/Debug-iphoneos -name "*.app" | head -n 1)
+          cp -r "$APP_PATH" Payload/
+          zip -r ServiceNSW-DevClient.ipa Payload
+
+      - name: Upload dev client IPA as release
+        run: |
+          gh release delete dev-client --yes 2>/dev/null || true
+          gh release create dev-client \
+            --title "Service NSW Dev Client" \
+            --notes "Install once via SideStore. Then run \`npx expo start\` on your computer to connect." \
+            --prerelease \
+            "ServiceNSW-DevClient.ipa#ServiceNSW-DevClient.ipa"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
