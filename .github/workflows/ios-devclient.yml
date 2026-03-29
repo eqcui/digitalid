@@ -26,14 +26,21 @@ jobs:
         run: |
           node -e "
           const fs = require('fs');
+
+          // Patch app.json
           const cfg = JSON.parse(fs.readFileSync('app.json', 'utf8'));
           cfg.expo.name = 'Service NSW Dev';
           cfg.expo.ios.bundleIdentifier = 'com.eqcui.ServiceNSW.dev';
-          // Add expo-dev-client plugin only for dev builds
           if (!cfg.expo.plugins.includes('expo-dev-client')) {
             cfg.expo.plugins.unshift('expo-dev-client');
           }
           fs.writeFileSync('app.json', JSON.stringify(cfg, null, 2));
+
+          // Remove autolinking exclusion so expo-dev-client is linked
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          if (pkg.expo && pkg.expo.autolinking) delete pkg.expo.autolinking;
+          fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+
           console.log('Patched for dev client');
           "
 

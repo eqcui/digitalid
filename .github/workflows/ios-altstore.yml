@@ -67,16 +67,21 @@ jobs:
           let content = fs.readFileSync(path, 'utf8');
 
           // 1. Force New Architecture OFF globally
-          // This overrides the environment and the properties file
           content = 'ENV[\"RCT_NEW_ARCH_ENABLED\"] = \"0\"\n' + content;
 
           // 2. Add Tor pod at the very end of the main target block
-          // We look for the LAST 'end' in the file (which usually closes the main target)
           const torLine = \"\n  pod 'react-native-tor', :path => '../node_modules/react-native-tor'\n\";
           const lastEndIndex = content.lastIndexOf('end');
           if (lastEndIndex !== -1 && !content.includes('react-native-tor')) {
             content = content.slice(0, lastEndIndex) + torLine + content.slice(lastEndIndex);
           }
+
+          // 3. Exclude expo-dev-client and expo-dev-menu from production builds
+          // They require Debug configuration and old bridge headers unavailable in Release
+          content = content.replace(
+            /^(\\s*pod ['\"](EXDevMenu|expo-dev-menu|EXDevClient|expo-dev-client)['\"].*)$/gm,
+            '# $1 # excluded from production build'
+          );
 
           fs.writeFileSync(path, content);
           console.log('--- PATCHED PODFILE ---');
