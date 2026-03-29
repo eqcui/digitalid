@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Animated,
   PanResponder,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Polygon } from 'react-native-svg';
@@ -31,10 +32,11 @@ export default function LicenceScreen({ navigation, route }) {
   const licenceId = route?.params?.licenceId;
   const licence   = licences.find((l) => l.id === licenceId) ?? licences[0] ?? null;
 
-  const [qrUrl,      setQrUrl]      = useState(PLACEHOLDER_QR);
-  const [qrLoading,  setQrLoading]  = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshDate, setRefreshDate] = useState(new Date());
+  const [qrUrl,        setQrUrl]        = useState(PLACEHOLDER_QR);
+  const [qrLoading,    setQrLoading]    = useState(false);
+  const [refreshing,   setRefreshing]   = useState(false);
+  const [refreshDate,  setRefreshDate]  = useState(new Date());
+  const [infoModal,    setInfoModal]    = useState(null); // 'class' | 'conditions' | null
 
   const cached = photoCache[licence?.id];
   const [licenceProfilePhotoUrl,   setLicenceProfilePhotoUrl]   = useState(cached?.profilePhotoUrl   ?? null);
@@ -277,13 +279,18 @@ export default function LicenceScreen({ navigation, route }) {
                 <View style={styles.ccBlockLeft}>
                   <View style={styles.ccHeader}>
                     <Text style={styles.ccLabel}>CLASS</Text>
-                    <View style={styles.infoIcon}><Text style={styles.infoIconText}>i</Text></View>
+                    <TouchableOpacity style={styles.infoIcon} onPress={() => setInfoModal('class')}>
+                      <Text style={styles.infoIconText}>i</Text>
+                    </TouchableOpacity>
                   </View>
                   <Text style={styles.ccValue}>{licence.licenceClass}</Text>
                 </View>
                 <View style={styles.ccBlockRight}>
                   <View style={styles.ccHeader}>
                     <Text style={styles.ccLabel}>CONDITIONS</Text>
+                    <TouchableOpacity style={styles.infoIcon} onPress={() => setInfoModal('conditions')}>
+                      <Text style={styles.infoIconText}>i</Text>
+                    </TouchableOpacity>
                   </View>
                   <Text style={styles.ccValue}>{licence.conditions ?? 'None'}</Text>
                 </View>
@@ -321,6 +328,53 @@ export default function LicenceScreen({ navigation, route }) {
           </ScrollView>
         </Animated.View>
       </View>
+
+      {/* ── Class / Conditions info modal ── */}
+      <Modal
+        visible={infoModal !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setInfoModal(null)}
+      >
+        <TouchableOpacity
+          style={styles.infoOverlay}
+          activeOpacity={1}
+          onPress={() => setInfoModal(null)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.infoBox}>
+            <Text style={styles.infoBoxTitle}>More about your licence</Text>
+
+            {infoModal === 'class' && (
+              <>
+                <Text style={styles.infoBoxLabel}>CLASS</Text>
+                <Text style={styles.infoBoxValue}>{licence?.licenceClass}</Text>
+                <Text style={styles.infoBoxDesc}>
+                  C = Vehicle seating up to 12 adults, to 4.5 tonnes GVM; Tractor, Implement
+                </Text>
+                <Text style={styles.infoBoxLabel}>EXPIRY</Text>
+                <Text style={styles.infoBoxValue}>{licence?.expiry}</Text>
+              </>
+            )}
+
+            {infoModal === 'conditions' && (
+              <>
+                <Text style={styles.infoBoxLabel}>CONDITIONS</Text>
+                <Text style={styles.infoBoxValue}>{licence?.conditions ?? 'None'}</Text>
+                <Text style={styles.infoBoxDesc}>
+                  {licence?.conditions?.includes('A') ? 'A = Must wear corrective lenses\n' : ''}
+                  {licence?.conditions?.includes('Y') ? 'Y = Blood alcohol limit 0.00\n' : ''}
+                  {licence?.conditions?.includes('B') ? 'B = Automatic vehicles only\n' : ''}
+                  {!licence?.conditions ? 'No conditions apply to this licence.' : ''}
+                </Text>
+              </>
+            )}
+
+            <TouchableOpacity style={styles.infoBoxClose} onPress={() => setInfoModal(null)}>
+              <Text style={styles.infoBoxCloseText}>Close</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
     </SafeAreaView>
   );
@@ -384,6 +438,14 @@ const styles = StyleSheet.create({
   signatureContainer: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, paddingTop: 4, paddingBottom: 20, backgroundColor: 'transparent', marginTop: -12, zIndex: 2, position: 'relative' },
   signatureWhiteBox:  { backgroundColor: '#FFFFFF', padding: 6, borderRadius: 0, width: 120, height: 60, alignItems: 'center', justifyContent: 'center' },
   signaturePhoto:     { width: 108, height: 48, resizeMode: 'contain' },
+  infoOverlay:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 28 },
+  infoBox:          { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 24, width: '100%', maxWidth: 360 },
+  infoBoxTitle:     { fontSize: 17, fontWeight: '700', color: '#000000', marginBottom: 18 },
+  infoBoxLabel:     { fontSize: 10, fontWeight: '700', color: '#666666', letterSpacing: 1, textTransform: 'uppercase', marginTop: 12, marginBottom: 2 },
+  infoBoxValue:     { fontSize: 20, fontWeight: '700', color: '#000000', marginBottom: 4 },
+  infoBoxDesc:      { fontSize: 13, color: '#444444', lineHeight: 20, marginTop: 4 },
+  infoBoxClose:     { marginTop: 24, backgroundColor: '#F2F2F7', borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
+  infoBoxCloseText: { fontSize: 16, fontWeight: '500', color: '#000000' },
   bottomCardInfo:     { position: 'absolute', left: 40, bottom: 12, zIndex: 2 },
   bottomCardNumber:   { fontSize: 13, fontWeight: '700', color: '#ffffff' },
   bottomCardLabel:    { fontSize: 8, fontWeight: '700', color: '#ffffff', marginTop: 1, letterSpacing: 0.5 },

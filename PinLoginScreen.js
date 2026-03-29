@@ -191,6 +191,30 @@ export default function PinLoginScreen() {
     );
   };
 
+  // ── Logging in screen ───────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <StatusBar barStyle="light-content" backgroundColor="#121212" />
+        <View style={styles.header}>
+          <View style={styles.headerLogos}>
+            <Image source={require('./assets/nsw-logo.png')}         style={styles.nswLogo} />
+            <Image source={require('./assets/service-nsw-logo.png')} style={styles.serviceLogoImg} />
+          </View>
+          <View style={styles.menuDots} />
+        </View>
+        <View style={styles.loggingInPage}>
+          <Text style={styles.loggingInText}>Logging in</Text>
+          <View style={styles.dotsRowSmall}>
+            {[dot1, dot2, dot3].map((dot, i) => (
+              <Animated.View key={i} style={[styles.loadingDot, { opacity: dot }]} />
+            ))}
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <StatusBar barStyle="light-content" backgroundColor="#121212" />
@@ -233,22 +257,11 @@ export default function PinLoginScreen() {
         >
           <Text style={styles.pinTitle}>Log in with PIN</Text>
 
-          {loading ? (
-            <View style={styles.loggingInContainer}>
-              <Text style={styles.loggingInText}>Logging in</Text>
-              <View style={styles.dotsRowSmall}>
-                {[dot1, dot2, dot3].map((dot, i) => (
-                  <Animated.View key={i} style={[styles.loadingDot, { opacity: dot }]} />
-                ))}
-              </View>
-            </View>
-          ) : (
-            <Animated.View
-              style={[styles.dotsRow, { transform: [{ translateX: shakeAnim }] }]}
-            >
-              {Array.from({ length: PIN_LENGTH }).map((_, i) => renderDot(i))}
-            </Animated.View>
-          )}
+          <Animated.View
+            style={[styles.dotsRow, { transform: [{ translateX: shakeAnim }] }]}
+          >
+            {Array.from({ length: PIN_LENGTH }).map((_, i) => renderDot(i))}
+          </Animated.View>
 
           {!!error && <Text style={styles.errorText}>{error}</Text>}
 
@@ -369,11 +382,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 22,
   },
-  loggingInContainer: {
-    height: DOT_SIZE,
+  loggingInPage: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    gap: 20,
   },
   loggingInText: {
     color: '#FFFFFF',
