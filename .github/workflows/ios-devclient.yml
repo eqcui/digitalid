@@ -22,13 +22,17 @@ jobs:
       - name: Install Dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Patch bundle ID and name for dev client
+      - name: Patch bundle ID, name, and plugins for dev client
         run: |
           node -e "
           const fs = require('fs');
           const cfg = JSON.parse(fs.readFileSync('app.json', 'utf8'));
           cfg.expo.name = 'Service NSW Dev';
           cfg.expo.ios.bundleIdentifier = 'com.eqcui.ServiceNSW.dev';
+          // Add expo-dev-client plugin only for dev builds
+          if (!cfg.expo.plugins.includes('expo-dev-client')) {
+            cfg.expo.plugins.unshift('expo-dev-client');
+          }
           fs.writeFileSync('app.json', JSON.stringify(cfg, null, 2));
           console.log('Patched for dev client');
           "
