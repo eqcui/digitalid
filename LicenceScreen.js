@@ -26,7 +26,7 @@ const PULL_THRESHOLD = 70;
 const SPINNER_HEIGHT = 60;
 
 export default function LicenceScreen({ navigation, route }) {
-  const { user, token, licences, refreshUser } = useAuth();
+  const { user, token, licences, photoCache, refreshUser } = useAuth();
 
   const licenceId = route?.params?.licenceId;
   const licence   = licences.find((l) => l.id === licenceId) ?? licences[0] ?? null;
@@ -36,8 +36,9 @@ export default function LicenceScreen({ navigation, route }) {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshDate, setRefreshDate] = useState(new Date());
 
-  const [licenceProfilePhotoUrl,   setLicenceProfilePhotoUrl]   = useState(null);
-  const [licenceSignaturePhotoUrl, setLicenceSignaturePhotoUrl] = useState(null);
+  const cached = photoCache[licence?.id];
+  const [licenceProfilePhotoUrl,   setLicenceProfilePhotoUrl]   = useState(cached?.profilePhotoUrl   ?? null);
+  const [licenceSignaturePhotoUrl, setLicenceSignaturePhotoUrl] = useState(cached?.signaturePhotoUrl ?? null);
 
   // Pull-to-refresh animation
   const pullY        = useRef(new Animated.Value(0)).current;
@@ -57,15 +58,23 @@ export default function LicenceScreen({ navigation, route }) {
 
   useEffect(() => { loadQR(); }, [loadQR]);
 
-  // ── Fetch photos ───────────────────────────────────────────────────────────
+  // ── Sync photos from cache when cache updates ──────────────────────────────
+  useEffect(() => {
+    const c = photoCache[licence?.id];
+    if (c?.profilePhotoUrl)   setLicenceProfilePhotoUrl(c.profilePhotoUrl);
+    if (c?.signaturePhotoUrl) setLicenceSignaturePhotoUrl(c.signaturePhotoUrl);
+  }, [photoCache, licence?.id]);
+
+  // ── Fetch photos only if not already cached ────────────────────────────────
   const loadPhotos = useCallback(async () => {
     if (!licence?.id || !token) return;
+    if (photoCache[licence.id]) return; // already cached by AuthContext
     try {
       const { profilePhotoUrl, signaturePhotoUrl } = await fetchLicencePhotos(token, licence.id);
       if (profilePhotoUrl)   setLicenceProfilePhotoUrl(await fetchPhotoAsDataUri(profilePhotoUrl));
       if (signaturePhotoUrl) setLicenceSignaturePhotoUrl(await fetchPhotoAsDataUri(signaturePhotoUrl));
     } catch {}
-  }, [licence?.id, token]);
+  }, [licence?.id, token, photoCache]);
 
   useEffect(() => { loadPhotos(); }, [loadPhotos]);
 
@@ -81,7 +90,7 @@ export default function LicenceScreen({ navigation, route }) {
     // pullY is already locked to SPINNER_HEIGHT by the PanResponder on release
 
     try {
-      await Promise.all([refreshUser(), loadQR(), loadPhotos()]);
+      await Promise.all([refreshUser(), loadQR()]);
       setRefreshDate(new Date());
     } catch {
       setRefreshDate(new Date());

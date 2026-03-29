@@ -1,12 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-// getTor() is imported but NOT called here at module level.
-// It is only called inside useEffect, after the native bridge is ready.
 import { getTor, resetTor } from './tor';
 
 import { AuthProvider, useAuth } from './AuthContext';
@@ -18,14 +17,18 @@ import AccountScreen  from './AccountScreen';
 import ServicesScreen from './ServicesScreen';
 import WalletScreen   from './WalletScreen';
 
+// Keep the native splash screen visible until Tor is ready
+SplashScreen.preventAutoHideAsync();
+
 const Stack = createNativeStackNavigator();
+const KEEP_AWAKE_TAG = 'tor-bootstrap';
 
 function RootNavigator() {
   const { user, loading } = useAuth();
 
   if (loading) {
     return (
-      <View style={styles.splash}>
+      <View style={styles.loading}>
         <ActivityIndicator size="large" color="#FFFFFF" />
       </View>
     );
@@ -51,8 +54,6 @@ function RootNavigator() {
   );
 }
 
-const KEEP_AWAKE_TAG = 'tor-bootstrap';
-
 async function stopAndResetTor() {
   try {
     const tor = getTor();
@@ -62,16 +63,10 @@ async function stopAndResetTor() {
 }
 
 export default function App() {
-  const [torReady,    setTorReady]    = useState(false);
-  const [torProgress, setTorProgress] = useState(0);
-  const [torStatus,   setTorStatus]   = useState('');
-  const [attempt,     setAttempt]     = useState(1);
-  const [retryKey,    setRetryKey]    = useState(0);
+  const [torReady, setTorReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-
-    // Keep screen on so the device doesn't lock mid-bootstrap
     activateKeepAwakeAsync(KEEP_AWAKE_TAG);
 
     async function tryBootstrap(attemptNum) {
@@ -83,40 +78,29 @@ export default function App() {
       }
 
       const tor = getTor();
-      if (!tor) return;
+      if (!tor) { tryBootstrap(attemptNum + 1); return; }
 
       try {
         await tor.startIfNotStarted();
       } catch (_) {
         if (cancelled) return;
-        setAttempt(a => a + 1);
-        setTorProgress(0);
         tryBootstrap(attemptNum + 1);
         return;
       }
 
-      // Poll until DONE — no hard limit, retry on stall
       let polls = 0;
       while (true) {
         if (cancelled) return;
         const status = await tor.getDaemonStatus().catch(() => '');
-        setTorStatus(status);
         if (status.replace(/"/g, '').toUpperCase() === 'DONE') {
           deactivateKeepAwake(KEEP_AWAKE_TAG);
+          SplashScreen.hideAsync();
           setTorReady(true);
           return;
         }
-        const match = status.match(/PROGRESS=(\d+)/);
-        if (match) setTorProgress(Number(match[1]));
         await new Promise(r => setTimeout(r, 1000));
         polls++;
-        // After 90s of polling with no DONE, restart the daemon and try again
-        if (polls >= 90) {
-          setAttempt(a => a + 1);
-          setTorProgress(0);
-          tryBootstrap(attemptNum + 1);
-          return;
-        }
+        if (polls >= 90) { tryBootstrap(attemptNum + 1); return; }
       }
     }
 
@@ -128,30 +112,9 @@ export default function App() {
       const tor = getTor();
       if (tor) tor.stopIfRunning().catch(() => {});
     };
-  }, [retryKey]);
-
-  const handleRetry = useCallback(async () => {
-    setAttempt(1);
-    setTorProgress(0);
-    await stopAndResetTor();
-    setRetryKey(k => k + 1);
   }, []);
 
-  if (!torReady) {
-    return (
-      <View style={styles.splash}>
-        <ActivityIndicator color="#fff" size="large" />
-        <Text style={styles.torText}>
-          Connecting securely…
-          {torProgress > 0 ? ` ${torProgress}%` : ''}
-          {attempt > 1 ? `  (attempt ${attempt})` : ''}
-        </Text>
-        {torStatus ? (
-          <Text style={styles.debugText}>{torStatus}</Text>
-        ) : null}
-      </View>
-    );
-  }
+  if (!torReady) return null;
 
   return (
     <SafeAreaProvider>
@@ -163,22 +126,10 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  splash: {
+  loading: {
     flex: 1,
     backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
-  },
-  torText: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 14,
-  },
-  debugText: {
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: 11,
-    fontFamily: 'Courier',
-    textAlign: 'center',
-    paddingHorizontal: 24,
   },
 });
