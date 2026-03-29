@@ -386,22 +386,21 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 20,
+    gap: 16,
   },
   loggingInText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    marginBottom: 12,
   },
   dotsRowSmall: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
   },
   loadingDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
     backgroundColor: '#5DADE2',
   },
   dotsRow: {
