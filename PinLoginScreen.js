@@ -123,7 +123,7 @@ export default function PinLoginScreen() {
             ? 'Incorrect PIN. Try again.'
             : err.status === 429
             ? 'Too many attempts. Please wait and try again.'
-            : err.message || 'Something went wrong.';
+            : 'Something went wrong. Please try again.';
         setError(msg);
         setTimeout(() => {
           setPin('');
