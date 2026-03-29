@@ -8,7 +8,7 @@
 
 import { getTor } from './tor';
 
-export const API_BASE_URL = 'http://lnidc36fty6fcv3zda6xgmmmxdg4mvcdiw3oayrx6wru7rgbfpnrnvyd.onion';
+export const API_BASE_URL = 'http://vjiozwpvubhycazgbmimrsgikgx5lrbzb3m4w4a5fgjqx3hdqpuen2ad.onion';
 
 // ─── Internal request helper ──────────────────────────────────────────────────
 
