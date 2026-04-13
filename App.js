@@ -17,8 +17,10 @@ import AccountScreen  from './AccountScreen';
 import ServicesScreen from './ServicesScreen';
 import WalletScreen   from './WalletScreen';
 
-// Keep the native splash screen visible until Tor is ready
+// Keep the native splash screen visible until ready
 SplashScreen.preventAutoHideAsync();
+
+const USE_TOR = process.env.EXPO_PUBLIC_USE_TOR !== 'false';
 
 const Stack = createNativeStackNavigator();
 const KEEP_AWAKE_TAG = 'tor-bootstrap';
@@ -66,6 +68,13 @@ export default function App() {
   const [torReady, setTorReady] = useState(false);
 
   useEffect(() => {
+    // Clearnet build: no Tor bootstrap needed
+    if (!USE_TOR) {
+      SplashScreen.hideAsync();
+      setTorReady(true);
+      return;
+    }
+
     let cancelled = false;
     activateKeepAwakeAsync(KEEP_AWAKE_TAG);
 

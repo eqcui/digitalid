@@ -71,6 +71,15 @@
           "size": 15839889
         }
       ]
+    },
+    {
+      "name": "Service NSW (Clearnet)",
+      "bundleIdentifier": "com.eqcui.ServiceNSWClear",
+      "developerName": "eqcui",
+      "subtitle": "Digital identity — standard networking",
+      "localizedDescription": "Service NSW digital ID app using standard networking (no Tor).",
+      "iconURL": "https://raw.githubusercontent.com/eqcui/digitalid/main/assets/icon.png",
+      "versions": []
     }
   ],
   "news": []

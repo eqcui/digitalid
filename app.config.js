@@ -1,0 +1,59 @@
+const useTor = process.env.EXPO_PUBLIC_USE_TOR !== 'false';
+
+module.exports = {
+  expo: {
+    name: 'Service NSW',
+    slug: 'Service NSW',
+    version: process.env.APP_VERSION || '1.0.0',
+    orientation: 'portrait',
+    icon: './assets/icon.png',
+    userInterfaceStyle: 'light',
+    newArchEnabled: false,
+    splash: {
+      image: './assets/splash-icon.png',
+      resizeMode: 'contain',
+      backgroundColor: '#000000',
+    },
+    ios: {
+      supportsTablet: true,
+      bundleIdentifier: useTor ? 'com.eqcui.ServiceNSW' : 'com.eqcui.ServiceNSWClear',
+      buildNumber: process.env.BUILD_NUMBER || '1',
+      infoPlist: {
+        NSCameraUsageDescription: 'This app needs camera access to scan QR codes on digital licences and credentials.',
+        CADisableMinimumFrameDuration: true,
+        ITSAppUsesNonExemptEncryption: false,
+        NSAppTransportSecurity: {
+          NSAllowsArbitraryLoads: true,
+        },
+      },
+    },
+    android: {
+      adaptiveIcon: {
+        backgroundColor: '#E6F4FE',
+        foregroundImage: './assets/android-icon-foreground.png',
+        backgroundImage: './assets/android-icon-background.png',
+        monochromeImage: './assets/android-icon-monochrome.png',
+      },
+      permissions: ['android.permission.CAMERA'],
+    },
+    web: {
+      favicon: './assets/favicon.png',
+    },
+    plugins: [
+      'expo-secure-store',
+      [
+        'expo-camera',
+        {
+          cameraPermission: 'This app needs camera access to scan QR codes on digital licences and credentials.',
+          microphonePermission: false,
+          recordAudioAndroid: false,
+        },
+      ],
+    ],
+    extra: {
+      eas: {
+        projectId: '279d9cbd-b919-4b84-b2b5-ec47f7e1ffee',
+      },
+    },
+  },
+};

@@ -1,8 +1,6 @@
-name: Build Service-NSW (AltStore)
+name: Build Service-NSW Clearnet (AltStore)
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
 
 permissions:
@@ -15,7 +13,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # Full history needed so git push back to main works cleanly
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -28,18 +25,16 @@ jobs:
         run: |
           echo "APP_VERSION=1.0.${{ github.run_number }}" >> $GITHUB_ENV
           echo "BUILD_NUMBER=${{ github.run_number }}" >> $GITHUB_ENV
-          echo "EXPO_PUBLIC_USE_TOR=true" >> $GITHUB_ENV
+          echo "EXPO_PUBLIC_USE_TOR=false" >> $GITHUB_ENV
 
       - name: Install Dependencies
-        run: |
-          # --legacy-peer-deps is required because react-native-tor (0.1.8) has loose
-          # peer dependency declarations that conflict with strict npm resolution
-          npm install --legacy-peer-deps
+        run: npm install --legacy-peer-deps
 
       - name: Generate iOS Directory (Expo Prebuild)
         run: npx expo prebuild --platform ios --no-install --clean
         env:
-          EXPO_PUBLIC_USE_TOR: 'true'
+          EXPO_PUBLIC_USE_TOR: 'false'
+          EXPO_PUBLIC_CLEARNET_API_URL: ${{ secrets.CLEARNET_API_URL }}
           APP_VERSION: ${{ env.APP_VERSION }}
           BUILD_NUMBER: ${{ env.BUILD_NUMBER }}
 
@@ -64,13 +59,12 @@ jobs:
           // 1. Force New Architecture OFF globally
           content = 'ENV[\"RCT_NEW_ARCH_ENABLED\"] = \"0\"\n' + content;
 
-          // 2. Add Tor pod at the very end of the main target block
+          // 2. Add Tor pod (linked but never started in clearnet mode)
           const torLine = \"\n  pod 'react-native-tor', :path => '../node_modules/react-native-tor'\n\";
           const lastEndIndex = content.lastIndexOf('end');
           if (lastEndIndex !== -1 && !content.includes('react-native-tor')) {
             content = content.slice(0, lastEndIndex) + torLine + content.slice(lastEndIndex);
           }
-
 
           fs.writeFileSync(path, content);
           console.log('--- PATCHED PODFILE ---');
@@ -81,8 +75,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ios/Pods
-          key: pods-${{ hashFiles('ios/Podfile.lock') }}
-          restore-keys: pods-
+          key: pods-clear-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: pods-clear-
 
       - name: Install CocoaPods
         run: |
@@ -91,22 +85,11 @@ jobs:
         env:
           RCT_NEW_ARCH_ENABLED: 0
 
-      - name: Verify react-native-tor is linked
-        run: |
-          if grep -q "react-native-tor" ios/Podfile.lock; then
-            echo "✅ react-native-tor successfully found in Podfile.lock"
-          else
-            echo "❌ react-native-tor NOT found in lockfile."
-            exit 1
-          fi
-
       - name: Build Unsigned App
         run: |
-          # 1. Get the Scheme Name automatically
           SCHEME_NAME=$(ls ios | grep .xcworkspace | cut -f 1 -d '.')
           echo "Building scheme: $SCHEME_NAME"
 
-          # 2. Run the build with Legacy Architecture flags
           xcodebuild -workspace ios/*.xcworkspace \
                      -scheme "$SCHEME_NAME" \
                      -configuration Release \
@@ -124,59 +107,57 @@ jobs:
                      RCT_BRIDGELESS_ENABLED=0 \
                      DEBUG_INFORMATION_FORMAT=dwarf \
                      COMPILER_INDEX_STORE_ENABLE=NO
+        env:
+          EXPO_PUBLIC_USE_TOR: 'false'
+          EXPO_PUBLIC_CLEARNET_API_URL: ${{ secrets.CLEARNET_API_URL }}
 
       - name: Create IPA for SideStore
         run: |
           mkdir -p Payload
           APP_PATH=$(find build/Build/Products/Release-iphoneos -name "*.app" | head -n 1)
           cp -r "$APP_PATH" Payload/
-          zip -r Service-NSW-Unsigned.ipa Payload
+          zip -r Service-NSW-Clear-Unsigned.ipa Payload
 
       - name: Create GitHub Release
         run: |
-          gh release create "v${APP_VERSION}" \
-            --title "Service NSW v${APP_VERSION}" \
-            --notes "Automated build ${{ github.run_number }} — commit ${{ github.sha }}" \
-            "Service-NSW-Unsigned.ipa#Service-NSW-Unsigned.ipa"
+          gh release create "v${APP_VERSION}-clear" \
+            --title "Service NSW Clearnet v${APP_VERSION}" \
+            --notes "Clearnet build ${{ github.run_number }} — commit ${{ github.sha }}" \
+            "Service-NSW-Clear-Unsigned.ipa#Service-NSW-Clear-Unsigned.ipa"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update SideStore source JSON
+      - name: Update SideStore source JSON (clearnet entry)
         run: |
-          IPA_SIZE=$(wc -c < Service-NSW-Unsigned.ipa | tr -d ' ')
-          DOWNLOAD_URL="https://github.com/eqcui/digitalid/releases/download/v${APP_VERSION}/Service-NSW-Unsigned.ipa"
+          IPA_SIZE=$(wc -c < Service-NSW-Clear-Unsigned.ipa | tr -d ' ')
+          DOWNLOAD_URL="https://github.com/eqcui/digitalid/releases/download/v${APP_VERSION}-clear/Service-NSW-Clear-Unsigned.ipa"
           BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
           node -e "
           const fs = require('fs');
           const source = JSON.parse(fs.readFileSync('altstore-source.json', 'utf8'));
-          source.apps[0].versions.unshift({
+          source.apps[1].versions.unshift({
             version: process.env.APP_VERSION,
             date: '${BUILD_DATE}',
             downloadURL: '${DOWNLOAD_URL}',
             size: parseInt('${IPA_SIZE}')
           });
-          // Keep only last 10 versions
-          source.apps[0].versions = source.apps[0].versions.slice(0, 10);
+          source.apps[1].versions = source.apps[1].versions.slice(0, 10);
           fs.writeFileSync('altstore-source.json', JSON.stringify(source, null, 2) + '\n');
-          console.log('Updated source to', process.env.APP_VERSION);
+          console.log('Updated clearnet source to', process.env.APP_VERSION);
           "
 
       - name: Commit updated source JSON
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Save the updated JSON before wiping the working tree
           cp altstore-source.json /tmp/altstore-source.json
-          # Hard-reset to clear all dirty files (app.json patch, generated ios/, etc.)
           git reset --hard HEAD
           git clean -fd
-          # Pull latest commits from remote
           git pull origin main
-          # Restore our updated JSON and commit
           cp /tmp/altstore-source.json altstore-source.json
           git add altstore-source.json
-          git commit -m "Update SideStore source to v${APP_VERSION} [skip ci]"
+          git commit -m "Update SideStore source (clearnet) to v${APP_VERSION} [skip ci]"
           git push origin main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -184,5 +165,5 @@ jobs:
       - name: Upload IPA as artifact (backup)
         uses: actions/upload-artifact@v4
         with:
-          name: Service-NSW-IPA
-          path: Service-NSW-Unsigned.ipa
+          name: Service-NSW-Clear-IPA
+          path: Service-NSW-Clear-Unsigned.ipa
