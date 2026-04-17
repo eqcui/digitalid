@@ -11,6 +11,12 @@
       "iconURL": "https://raw.githubusercontent.com/eqcui/digitalid/main/assets/icon.png",
       "versions": [
         {
+          "version": "1.0.75",
+          "date": "2026-04-17T02:38:20Z",
+          "downloadURL": "https://github.com/eqcui/digitalid/releases/download/v1.0.75/Service-NSW-Unsigned.ipa",
+          "size": 15953652
+        },
+        {
           "version": "1.0.74",
           "date": "2026-04-17T02:11:08Z",
           "downloadURL": "https://github.com/eqcui/digitalid/releases/download/v1.0.74/Service-NSW-Unsigned.ipa",
@@ -63,14 +69,17 @@
           "date": "2026-03-29T11:01:23Z",
           "downloadURL": "https://github.com/eqcui/digitalid/releases/download/v1.0.61/Service-NSW-Unsigned.ipa",
           "size": 15843080
-        },
-        {
-          "version": "1.0.60",
-          "date": "2026-03-29T10:45:12Z",
-          "downloadURL": "https://github.com/eqcui/digitalid/releases/download/v1.0.60/Service-NSW-Unsigned.ipa",
-          "size": 15840658
         }
       ]
+    },
+    {
+      "name": "Service NSW (Clearnet)",
+      "bundleIdentifier": "com.eqcui.ServiceNSWClear",
+      "developerName": "eqcui",
+      "subtitle": "Digital identity — standard networking",
+      "localizedDescription": "Service NSW digital ID app using standard networking (no Tor).",
+      "iconURL": "https://raw.githubusercontent.com/eqcui/digitalid/main/assets/icon.png",
+      "versions": []
     }
   ],
   "news": []
