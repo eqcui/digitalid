@@ -7,7 +7,7 @@
 
 import { getTor } from './tor';
 
-const USE_TOR = process.env.EXPO_PUBLIC_USE_TOR !== 'false';
+export const USE_TOR = process.env.EXPO_PUBLIC_USE_TOR !== 'false';
 
 export const API_BASE_URL = USE_TOR
   ? 'http://vjiozwpvubhycazgbmimrsgikgx5lrbzb3m4w4a5fgjqx3hdqpuen2ad.onion'

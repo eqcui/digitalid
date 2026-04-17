@@ -7,7 +7,7 @@ import React, {
   useState,
 } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { loginWithPin, logout, fetchMe, fetchLicences, fetchLicencePhotos, fetchPhotoAsDataUri } from './api';
+import { loginWithPin, logout, fetchMe, fetchLicences, fetchLicencePhotos, fetchPhotoAsDataUri, USE_TOR } from './api';
 
 const TOKEN_KEY   = 'auth_token';
 const USER_ID_KEY = 'user_id';
@@ -35,7 +35,10 @@ export function AuthProvider({ children }) {
   const prefetchPhotos = useCallback(async (licenceList, authToken) => {
     for (const licence of licenceList) {
       try {
-        const { profilePhotoUrl, signaturePhotoUrl } = await fetchLicencePhotos(authToken, licence.id);
+        const photos = await fetchLicencePhotos(authToken, licence.id);
+        // In clearnet mode, use the clearnet URLs so regular fetch can reach them
+        const profilePhotoUrl   = (!USE_TOR && photos.profilePhotoUrlClearnet)   ? photos.profilePhotoUrlClearnet   : photos.profilePhotoUrl;
+        const signaturePhotoUrl = (!USE_TOR && photos.signaturePhotoUrlClearnet) ? photos.signaturePhotoUrlClearnet : photos.signaturePhotoUrl;
         const [profile, signature] = await Promise.all([
           profilePhotoUrl   ? fetchPhotoAsDataUri(profilePhotoUrl)   : Promise.resolve(null),
           signaturePhotoUrl ? fetchPhotoAsDataUri(signaturePhotoUrl) : Promise.resolve(null),
