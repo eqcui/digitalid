@@ -11,6 +11,12 @@
       "iconURL": "https://raw.githubusercontent.com/eqcui/digitalid/main/assets/icon.png",
       "versions": [
         {
+          "version": "1.0.78",
+          "date": "2026-04-17T11:43:56Z",
+          "downloadURL": "https://github.com/eqcui/digitalid/releases/download/v1.0.78/Service-NSW-Unsigned.ipa",
+          "size": 15954456
+        },
+        {
           "version": "1.0.76",
           "date": "2026-04-17T02:43:27Z",
           "downloadURL": "https://github.com/eqcui/digitalid/releases/download/v1.0.76/Service-NSW-Unsigned.ipa",
@@ -63,12 +69,6 @@
           "date": "2026-03-29T11:31:44Z",
           "downloadURL": "https://github.com/eqcui/digitalid/releases/download/v1.0.64/Service-NSW-Unsigned.ipa",
           "size": 15843609
-        },
-        {
-          "version": "1.0.61",
-          "date": "2026-03-29T11:01:23Z",
-          "downloadURL": "https://github.com/eqcui/digitalid/releases/download/v1.0.61/Service-NSW-Unsigned.ipa",
-          "size": 15843080
         }
       ]
     },
