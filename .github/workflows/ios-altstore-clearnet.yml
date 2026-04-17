@@ -136,13 +136,27 @@ jobs:
           node -e "
           const fs = require('fs');
           const source = JSON.parse(fs.readFileSync('altstore-source.json', 'utf8'));
-          source.apps[1].versions.unshift({
+          const clearnetId = 'com.eqcui.ServiceNSWClear';
+          let app = source.apps.find(a => a.bundleIdentifier === clearnetId);
+          if (!app) {
+            app = {
+              name: 'Service NSW (Clearnet)',
+              bundleIdentifier: clearnetId,
+              developerName: 'eqcui',
+              subtitle: 'Digital identity — standard networking',
+              localizedDescription: 'Service NSW digital ID app using standard networking (no Tor).',
+              iconURL: 'https://raw.githubusercontent.com/eqcui/digitalid/main/assets/icon.png',
+              versions: []
+            };
+            source.apps.push(app);
+          }
+          app.versions.unshift({
             version: process.env.APP_VERSION,
             date: '${BUILD_DATE}',
             downloadURL: '${DOWNLOAD_URL}',
             size: parseInt('${IPA_SIZE}')
           });
-          source.apps[1].versions = source.apps[1].versions.slice(0, 10);
+          app.versions = app.versions.slice(0, 10);
           fs.writeFileSync('altstore-source.json', JSON.stringify(source, null, 2) + '\n');
           console.log('Updated clearnet source to', process.env.APP_VERSION);
           "
