@@ -13,7 +13,7 @@ import {
   Modal,
   Linking,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Polygon } from 'react-native-svg';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import HologramLotus   from './HologramLotus';
@@ -29,6 +29,7 @@ const SPINNER_HEIGHT = 60;
 
 export default function LicenceScreen({ navigation, route }) {
   const { user, token, licences, photoCache, refreshUser } = useAuth();
+  const insets = useSafeAreaInsets();
 
   const licenceId = route?.params?.licenceId;
   const licence   = licences.find((l) => l.id === licenceId) ?? licences[0] ?? null;
@@ -203,7 +204,7 @@ export default function LicenceScreen({ navigation, route }) {
       {/* ── DOTS MENU ── */}
       <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
         <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setMenuVisible(false)}>
-          <View style={styles.menuCard}>
+          <View style={[styles.menuCard, { top: insets.top + 56 }]}>
             <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); Linking.openURL('https://www.service.nsw.gov.au/feedback'); }}>
               <MaterialCommunityIcons name="message-reply-text-outline" size={18} color="#ccc" />
               <Text style={styles.menuItemText}>Feedback</Text>
@@ -486,7 +487,7 @@ const styles = StyleSheet.create({
   bottomNswLogo:      { position: 'absolute', right: 40, bottom: 12, width: 36, height: 30, resizeMode: 'contain', zIndex: 2 },
 
   menuOverlay:   { flex: 1 },
-  menuCard:      { position: 'absolute', top: 56, right: 12, backgroundColor: '#1e1e1e', borderRadius: 10, paddingVertical: 4, minWidth: 180, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 8, elevation: 8 },
+  menuCard:      { position: 'absolute', right: 12, backgroundColor: '#1e1e1e', borderRadius: 10, paddingVertical: 4, minWidth: 180, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 8, elevation: 8 },
   menuItem:      { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13, paddingHorizontal: 16 },
   menuItemText:  { fontSize: 15, color: '#FFFFFF' },
   menuDivider:   { height: 1, backgroundColor: 'rgba(255,255,255,0.08)', marginHorizontal: 12 },
