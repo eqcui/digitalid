@@ -10,7 +10,7 @@ import { getTor } from './tor';
 export const USE_TOR = process.env.EXPO_PUBLIC_USE_TOR !== 'false';
 
 export const API_BASE_URL = USE_TOR
-  ? 'http://vjiozwpvubhycazgbmimrsgikgx5lrbzb3m4w4a5fgjqx3hdqpuen2ad.onion'
+  ? 'http://4uajlgcjw75mfnxuniv2zrgxj3wpiloeilaxuvgx7z4mcxsnowkp5yqd.onion'
   : (process.env.EXPO_PUBLIC_CLEARNET_API_URL || '');
 
 // ─── Internal request helper ──────────────────────────────────────────────────
