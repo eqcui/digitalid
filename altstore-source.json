@@ -81,6 +81,12 @@
       "iconURL": "https://raw.githubusercontent.com/eqcui/digitalid/main/assets/icon.png",
       "versions": [
         {
+          "version": "1.0.8",
+          "date": "2026-07-03T13:33:09Z",
+          "downloadURL": "https://github.com/eqcui/digitalid/releases/download/v1.0.8-clear/Service-NSW-Clear-Unsigned.ipa",
+          "size": 15953962
+        },
+        {
           "version": "1.0.7",
           "date": "2026-07-03T13:18:23Z",
           "downloadURL": "https://github.com/eqcui/digitalid/releases/download/v1.0.7-clear/Service-NSW-Clear-Unsigned.ipa",
