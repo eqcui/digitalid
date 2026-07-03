@@ -1,2 +1,2 @@
 ## PROOF OF CONCEPT ## 
-An identification app prototype 
+An identification app security research prototype 
